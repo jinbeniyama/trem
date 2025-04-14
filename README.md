@@ -1,4 +1,4 @@
-# RETM (Reflectance and Emittance Thermophysical Model) or TREM (Thermophysical Reflectance and Emittance Model)
+# TREM (Thermophysical Reflectance and Emittance Model)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Developer
