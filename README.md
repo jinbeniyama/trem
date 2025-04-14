@@ -1,14 +1,13 @@
 # TREM (Thermophysical Reflectance and Emittance Model)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Developer
+Developers
 - Jin BENIYAMA [mail](mailto:jinbeniyama@gmail.com)
-- hoge
-- hoge
+- Koki YUMOTO
 
 ## Overview
 A model that implements the theory of reflectance and emittance spectroscopy.
-Under heavy development by J.B. etc.
+Under heavy development by J.B. and K.Y.
 
 ## Structure
 ```
@@ -16,7 +15,7 @@ retm_or_trem/
   README.md
   docs/
   notebooks/
-  retm/ 
+  trem/ 
     emittance/   # To handle thermal emission (i.e., conventional TPM)
     reflectance/ # To handle NIR wavelength
     test/        # For test, whatever
