@@ -1,4 +1,4 @@
-# RETM (Reflectance and Emittance Thermophysical Model)
+# RETM (Reflectance and Emittance Thermophysical Model) or TREM (Thermophysical Reflectance and Emittance Model)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Developer
@@ -10,6 +10,22 @@ Developer
 A model that implements the theory of reflectance and emittance spectroscopy.
 Under heavy development by J.B. etc.
 
+## Structure
+```
+retm_or_trem/
+  README.md
+  docs/
+  notebooks/
+  retm/ 
+    emittance/   # To handle thermal emission (i.e., conventional TPM)
+    reflectance/ # To handle NIR wavelength
+    test/        # For test, whatever
+  src/ # executable script (.py, .sh, etc.)
+    main.py
+    utils/
+      helper.py
+  tests/ # For test, whatever
+```
 
 ## Dependencies
 This library is depending on `NumPy`, `SciPy`, `SEP`, `Astropy` 
