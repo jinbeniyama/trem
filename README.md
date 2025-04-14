@@ -13,6 +13,7 @@ Under heavy development by J.B. and K.Y.
 ```
 retm_or_trem/
   README.md
+  c/ # TPM code (in prep.)
   docs/
   notebooks/
   trem/ 
