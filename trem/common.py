@@ -3,8 +3,6 @@
 """Common functions to prepare TPM and to handle/plot/utilize the results.
 
 """
-
-
 def make_ephemfile(asteroid, df, out, warmuptime_day=30):
     """
     Make ephem file for TPM.
@@ -104,7 +102,6 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
                     f_eph.write(f"{d} {x_S} {y_S} {z_S} 1\n")
                 else:
                     f_eph.write(f"{d} {x_S} {y_S} {z_S}\n")
-    # Make ephem file widh jds_chunk ==========================================
      
 
 def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):
