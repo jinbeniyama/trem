@@ -41,6 +41,12 @@ import numpy as np
 from astroquery.jplhorizons import Horizons
 
 
+mycolor = [
+    "#AD002D", "#1e50a2", "#69821b", "#f055f0", "#afafb0", 
+    "#0095b9", "#89c3eb", "#ec6800", "cyan", "gold", "magenta"
+    ] 
+
+
 def make_ephemfile(asteroid, df, out, warmuptime_day=30):
     """
     Make ephem file for TPM.
