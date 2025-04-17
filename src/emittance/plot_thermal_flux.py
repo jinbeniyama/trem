@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Plot "only" thermal flux in outputs of TPM.
@@ -6,7 +6,7 @@ TODO: Plot optical flux as well.
 """
 from argparse import ArgumentParser as ap
 
-from tpmwrapper.common import extract_flux, plot_flux
+from trem.emittance.common_emittance import extract_flux, plot_flux
 
 
 if __name__ == "__main__":
