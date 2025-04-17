@@ -292,9 +292,13 @@ def calc_confidence_chi2(paper, chi2_min, dof, n, reduce):
        Note: 
            Cambioni+2019 as well with n=1, Equatioin (4) is a typo,
            private com. with Saverio on 2025-01-09
-
+    
+    Both of these two expressions are approximations.
+    (chi2_min is not the unity in reality)
     Since normally chi2_min > 1, 1. gives smaller confidence levels and smaller 
     uncertainties of physical proproperties compared to 2.
+    When chi2_min ~ 1, the results are almost the same. 
+    See confidence_level.ipynb for comparison.
 
     Parameters
     ----------
