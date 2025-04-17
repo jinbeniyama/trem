@@ -24,7 +24,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from myplot import mycolor, mymark
 
-from tpmwrapper.common import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
+from trem.common import mycolor, mymark
+from trem.emittance.common_emittance import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
 
 
 if __name__ == "__main__":
