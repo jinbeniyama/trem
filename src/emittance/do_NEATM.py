@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt  
 import subprocess
 
-from myplot import mycolor
+from trem.common import mycolor
 
 
 if __name__ == "__main__":
