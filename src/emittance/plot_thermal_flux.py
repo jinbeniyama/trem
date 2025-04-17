@@ -6,7 +6,7 @@ TODO: Plot optical flux as well.
 """
 from argparse import ArgumentParser as ap
 
-from tpmwrapper.common import extract_flux, plot_flux
+from trem.emittance.common_emittance import extract_flux, plot_flux
 
 
 if __name__ == "__main__":
