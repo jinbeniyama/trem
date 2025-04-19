@@ -39,7 +39,7 @@ The default value is None for all queries, which corresponds to
 """
 import numpy as np
 from astroquery.jplhorizons import Horizons
-
+from astropy.constants import c, au
 
 mycolor = [
     "#AD002D", "#1e50a2", "#69821b", "#f055f0", "#afafb0", 
