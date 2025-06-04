@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Make obs file and ephem file for TPM.
@@ -9,7 +9,7 @@ jd (light-time corrected!), wavelength, flux, fluxerr, code, cflag.
 from argparse import ArgumentParser as ap
 import pandas as pd
 
-from tpmwrapper.common import make_ephemfile, make_obsfile
+from trem.common import make_ephemfile, make_obsfile
 
 
 if __name__ == "__main__":

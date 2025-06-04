@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Do NEATM, not TPM, with various parameters, and plot the results.
@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt  
 import subprocess
 
-from myplot import mycolor
+from trem.common import mycolor
 
 
 if __name__ == "__main__":

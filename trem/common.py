@@ -2,15 +2,51 @@
 # -*- coding: utf-8 -*-
 """Common functions to prepare TPM and to handle/plot/utilize the results.
 
+Read document carefully!
+JPL/HORIZONS: https://ssd.jpl.nasa.gov/horizons/manual.html
+astroquery  : https://astroquery.readthedocs.io/en/latest/jplhorizons/jplhorizons.html
+
+- About location
+location is like '(MPCcode)' (e.g., 381), 
+                 '(MPCcode)@(399, which means Earth)' (e.g., 381@391)
+The latter part is to specify major body 
+    (Earth '391', Sun '10', Moon '301', solar system barycenter '0' or 'ssb' etc.)
+The former part is to specify point on the major body (body center 500 etc.)
+
+J.B. notes that we have to set '@10', or 'None' (not '@0' or 'ssb')
+since  the center of Ecliptic coordinate system, 
+which is used in Marco's TPM code, is the Sun (not solar system barycenter).
+
+
+location refers to the coordinate center for the ephemeris, which has 
+slightly different physical interpretations depending on the query type: 
+  - observer (ephemerides) queries
+  - observer location vectors queries
+  - (coordinate origin for vectors elements queries)
+  - (relative body for orbital elements)
+
+The default value is None for all queries, which corresponds to
+  - Earth body center for observer (ephemerides) queries 
+    (i.e., location=500, 500@391)
+  - Sun body center for orbital elements and vectors queries 
+    (i.e., location=@10, 500@10)
+
+
+2024-05-15 J.B. confirmed that the generated ephem file with @10 
+           matched that in DAFEED better than that with @0. 
+           J.B. confirmed that the generated obs file with light time correction
+           matched that in DAFEED with an accuracy of 0.01 s.
 """
+import numpy as np
+from astroquery.jplhorizons import Horizons
+
+
 mycolor = [
     "#AD002D", "#1e50a2", "#69821b", "#f055f0", "#afafb0", 
-    "#0095b9", "#89c3eb", "#ec6800", "cyan", "gold",
-    "magenta"
+    "#0095b9", "#89c3eb", "#ec6800", "cyan", "gold", "magenta"
     ] 
 mycolor = mycolor*500
-
-mymark = ["o", "^", "s", "D", "*", "v", "<", ">", "h", "x"]
+mymark = ["o", "^", "s", "D", "*", "v", "<", ">", "h", "H"]
 mymark = mymark*500
 
 

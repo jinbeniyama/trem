@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Plot results of TPM using a brute-force method.
@@ -24,7 +24,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from myplot import mycolor, mymark
 
-from tpmwrapper.common import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
+from trem.emittance.common_emittance import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
 
 
 if __name__ == "__main__":
