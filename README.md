@@ -28,9 +28,9 @@ retm_or_trem/
 ```
 
 ## Test (in /tests)
-### Perform TPM
+### Anyway perform TPM
 A test TPM can be performed with a following command.
-We need to understand what `obj file`, `spin file`, `observation file`, and `ephemeris file` are.
+We need to understand what `object file`, `spin file`, `observation file`, and `ephemeris file` are.
 Please refer to `readme.pdf` (the document of Marco's code), [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/), `src/make_obseph.py` for the details of each file.
 ```
 # Do TPM
@@ -48,6 +48,14 @@ make_obseph.py Ryugu flux_test.txt --out_obs Ryugu_obs.txt --out_eph Ryugu_eph.t
 # Make observation and ephemeris files of Ryugu w/light-time correction
 make_obseph.py Ryugu flux_test.txt --out_obs Ryugu_obs.txt --out_eph Ryugu_eph.txt --ltcor
 ```
+
+### Prepare spin file
+You can download `.spin` file from [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/) etc.
+A conversion from SPICE Kernels is not so easy. (in prep.)
+
+### Prepare object file
+You can download `.obj` file from [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/) etc.
+
 
 ## Dependencies
 This repository is depending on `Python`, `NumPy`, `pandas`, `SciPy`, `Astropy`, `Astroquery`.
