@@ -1,0 +1,5 @@
+jd wavelength flux fluxerr code cflag memo
+2450000.0 8.0 10.0 1.0 371 999 Test_Epoch1
+2450000.0 9.0 12.0 1.0 371 999 Test_Epoch1
+2450000.0 10.0 14.0 1.0 371 999 Test_Epoch1
+2450010.0 8.0 11.0 1.0 371 999 Test_Epoch2
