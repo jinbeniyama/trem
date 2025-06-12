@@ -27,6 +27,15 @@ retm_or_trem/
   tests/ # For test, whatever
 ```
 
+## Test (in /tests)
+A test TPM can be performed with a following command.
+We need to understand what `obj file`, `spin file`, `observation file`, and `ephemeris file` are.
+Please refer to `readme.pdf` (the document of Marco's code), [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/), `src/make_obseph.py` for the details of each file.
+```
+# Do TPM
+bash TPM_test.sh SHAPE.obj spin.txt WISE.obs eph.txt
+```
+
 ## Dependencies
 This repository is depending on `Python`, `NumPy`, `pandas`, `SciPy`, `Astropy`, `Astroquery`.
 
