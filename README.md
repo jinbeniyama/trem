@@ -28,12 +28,25 @@ retm_or_trem/
 ```
 
 ## Test (in /tests)
+### Perform TPM
 A test TPM can be performed with a following command.
 We need to understand what `obj file`, `spin file`, `observation file`, and `ephemeris file` are.
 Please refer to `readme.pdf` (the document of Marco's code), [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/), `src/make_obseph.py` for the details of each file.
 ```
 # Do TPM
 bash TPM_test.sh SHAPE.obj spin.txt WISE.obs eph.txt
+```
+
+### Make observation and ephemeris files of Ryugu
+The observation file and ephemeris file can be made using `src/make_obseph.py`.
+We need to prepare observational results as `flux_test.txt` beforehand.
+The light-time correction is not performed by default, but can be performed with `--ltcor` option.
+
+```
+# Make observation and ephemeris files of Ryugu
+make_obseph.py Ryugu flux_test.txt --out_obs Ryugu_obs.txt --out_eph Ryugu_eph.txt
+# Make observation and ephemeris files of Ryugu w/light-time correction
+make_obseph.py Ryugu flux_test.txt --out_obs Ryugu_obs.txt --out_eph Ryugu_eph.txt --ltcor
 ```
 
 ## Dependencies
