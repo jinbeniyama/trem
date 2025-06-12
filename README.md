@@ -30,7 +30,7 @@ retm_or_trem/
 ## Test (in /tests)
 A test TPM can be performed with a following command.
 We need to understand what `obj file`, `spin file`, `observation file`, and `ephemeris file` are.
-Please refer to `readme.pdf` (the document of Marco's code), [Documentation of DAMIT](https://astro.troja.mff.cuni.cz/projects/damit/), `src/make_obseph.py` for the details of each file.
+Please refer to `readme.pdf` (the document of Marco's code), <a href="https://astro.troja.mff.cuni.cz/projects/damit/" target="_blank" rel="noopener noreferrer">Documentation of DAMIT</a>, `src/make_obseph.py` for the details of each file.
 ```
 # Do TPM
 bash TPM_test.sh SHAPE.obj spin.txt WISE.obs eph.txt
