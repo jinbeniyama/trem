@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Merge observations and NN model fluxes.
+
+NN model fluxes have to be made using NN model (in prep.)
 """
 import os 
 from argparse import ArgumentParser as ap
