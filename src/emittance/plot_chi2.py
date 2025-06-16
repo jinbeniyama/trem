@@ -40,6 +40,9 @@ if __name__ == "__main__":
         "-y", type=str, default="TI", 
         help="y axis of the plot (A, TI)")
     parser.add_argument(
+        "--fixscale", action="store_true", default=False,
+        help="Fix scale parameter")
+    parser.add_argument(
         "--reduce", action="store_true", default=False,
         help="Reduced chi square")
     parser.add_argument(
