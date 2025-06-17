@@ -244,7 +244,6 @@ if __name__ == "__main__":
             })
         out_df = os.path.join(args.outdir, args.out_df)
         df_out.to_csv(out_df, sep=" ")
-
     # Calculate chi2 with scale factors per observation =======================
     
 
@@ -284,6 +283,11 @@ if __name__ == "__main__":
     chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_3sigma)*1.2
     axin.set_xlim([val_0, val_1])
     axin.set_ylim([chi2_0, chi2_1])
+    
+
+    # This adjustment is necessary when logy == True
+    _, y1 = ax.get_ylim()
+    ax.set_ylim([chi2_0*0.7, y1])
 
     out = os.path.join(args.outdir, args.out)
     fig.savefig(out)
