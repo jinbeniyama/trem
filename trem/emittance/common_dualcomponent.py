@@ -87,17 +87,6 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     df1 = df1.sort_values(by=[key_t])
     return df1
 
-    # 2. This is faster =======================================================
-    df_blend = df1.copy()
-    df_blend["f_model"] = (
-        alpha*df1["scalefactor"]**2*df1["f_model"] + 
-        (1-alpha)*df2["scalefactor"]**2*df2["f_model"])
-    # This is a dummy
-    df_blend["scalefactor"] = 1
-    # 2. This is faster. =======================================================
-
-    return df
-
 
 def blend_flux(df1, df2, alpha):
     """
