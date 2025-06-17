@@ -147,7 +147,7 @@ if __name__ == "__main__":
         TI_new_list, Htheta_new_list = [], []
         Htheta_used = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
-            print(f"idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
+            print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
 
                 df_temp = df[
