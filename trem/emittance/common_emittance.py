@@ -381,7 +381,7 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
             df1_list.append(df_t)
 
     N_sf = len(t_cor_list)
-    print(f"  Number of scale factors = {N_sf}")
+    print(f"      Number of scale factors = {N_sf}")
      
     # Determine scale factor
     # List of scale factor to be searched
