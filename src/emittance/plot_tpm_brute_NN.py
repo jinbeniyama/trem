@@ -12,10 +12,8 @@ w/ scale_per_obs argument
 
 Example
 -------
-# A vs. chi square
-> plot_tpm.py tpmout* -x A --out result_A.jpg
 # TI (thermal inertia) vs. chi square
-> plot_tpm.py tpmout* -x TI --out result_TI.jpg
+> plot_tpm_brute_NN.py NN_TPMres.txt (file preprocessed by predict_flux_NN.py) -x TI --out result_TI.jpg
 """
 import os 
 from argparse import ArgumentParser as ap
