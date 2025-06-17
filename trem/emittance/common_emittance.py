@@ -151,7 +151,7 @@ def plot_flux(dfs, fixscale=False, y1range=None, out=None):
             if f_obs > 0:
                 res = (f_obs - f_model)/ferr_obs
                 chi2 += res**2
-            print(f"  f_obs, f_model, res = {f_obs}+-{ferr_obs}, {f_model}, {res}")
+            print(f"  {idx_row+1}/{len(df)} f_obs, f_model, res = {f_obs:.5f}+-{ferr_obs:.5f}, {f_model:.5f}, {res:.5f}")
 
             if idx_row == (len(df)-1):
                 label = f"Idx {idx_df}: chi2 = {chi2:.3f}"
