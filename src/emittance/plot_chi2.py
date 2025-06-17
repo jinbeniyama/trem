@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Under heavy development. Useless......?
+
 Plot results of TPM.
 
 w/ fixscale argument
@@ -39,6 +41,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-y", type=str, default="TI", 
         help="y axis of the plot (A, TI)")
+    parser.add_argument(
+        "--fixscale", action="store_true", default=False,
+        help="Fix scale parameter")
     parser.add_argument(
         "--reduce", action="store_true", default=False,
         help="Reduced chi square")

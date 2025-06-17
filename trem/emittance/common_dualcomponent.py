@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """Common functions for dual-component TPM.
 """
+from trem.emittance.common_emittance import calc_chi2
+
 
 def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     """

@@ -19,7 +19,7 @@ from argparse import ArgumentParser as ap
 import numpy as np
 from astropy import constants as const
 import matplotlib.pyplot as plt
-from tpmwrapper.material import (
+from trem.emittance.material import (
     get_material_properties, calc_k_rad_GB, calc_k_rad_sakatani, 
     c_p_ordinary_chondrite)
 

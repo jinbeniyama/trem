@@ -156,7 +156,7 @@ def plot_flux(dfs, fixscale=False, y1range=None, out=None):
             if f_obs > 0:
                 res = (f_obs - f_model)/ferr_obs
                 chi2 += res**2
-            print(f"  f_obs, f_model, res = {f_obs}+-{ferr_obs}, {f_model}, {res}")
+            print(f"  {idx_row+1}/{len(df)} f_obs, f_model, res = {f_obs:.5f}+-{ferr_obs:.5f}, {f_model:.5f}, {res:.5f}")
 
             if idx_row == (len(df)-1):
                 label = f"Idx {idx_df}: chi2 = {chi2:.3f}"
@@ -392,7 +392,7 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     # List of scale factor to be searched
     sf_list = np.arange(sf0, sf1+sfstep, sfstep)
     for idx_t, t_cor in enumerate(t_cor_list):
-        df_t = df[df[key_t] == t_cor]
+        df_t = df[df[key_t] == t_cor].copy()
 
         # Minimize chi2
         for idx_sf, sf in enumerate(sf_list):
