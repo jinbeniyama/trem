@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
                 df_temp = df[
                     (df["Htheta"] == Htheta) &
-                    (df["TI"] == TI)] 
+                    (df["TI"] == TI)].copy()
                 chi2 = calc_chi2(df_temp)
                 # Use reduced chi2
                 if args.reduce:
