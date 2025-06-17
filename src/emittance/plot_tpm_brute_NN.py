@@ -75,20 +75,6 @@ if __name__ == "__main__":
     fixscale = args.fixscale
     # Parse arguments =========================================================
 
-
-    # Read files 
-    df = pd.read_csv(args.res, sep=" ")
-    # Add dummy
-    df["scalefactor"] = 1
-    Htheta_list_sort = sorted(list(set(df["Htheta"])))
-    TI_list_sort = sorted(list(set(df["TI"])))
-    df_temp = df[
-        (df["Htheta"] == Htheta_list_sort[0]) & 
-        (df["TI"] == TI_list_sort[0])
-        ]
-    # Number of data points
-    N_data = len(df_temp)
-    
     # Parameter of interest in X label
     val = args.x
     if val == "A":
@@ -99,6 +85,21 @@ if __name__ == "__main__":
         xlabel = "Crater opening angle [deg]"
     elif val == "CR":
         xlabel = "Crater covering ratio"
+
+
+    # Read files 
+    df = pd.read_csv(args.res, sep=" ")
+    # Add dummy
+    df["scalefactor"] = 1
+    Htheta_list_sort = sorted(list(set(df["Htheta"])))
+    TI_list_sort = sorted(list(set(df["TI"])))
+    # Extract data with a Htheta and a TI
+    df_temp = df[
+        (df["Htheta"] == Htheta_list_sort[0]) & 
+        (df["TI"] == TI_list_sort[0])
+        ]
+    # Number of data points
+    N_data = len(df_temp)
      
 
     # Calculate dof ===========================================================
@@ -233,7 +234,10 @@ if __name__ == "__main__":
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
 
-    # Save them
+    # Calculate chi2 with scale factors per observation =======================
+
+
+    # Save chi2, TI, and Htheta ===============================================
     if args.out_df:
         df_out = pd.DataFrame({
             "chi2": chi2_new_list,
@@ -242,25 +246,37 @@ if __name__ == "__main__":
             })
         out_df = os.path.join(args.outdir, args.out_df)
         df_out.to_csv(out_df, sep=" ")
-    # Calculate chi2 with scale factors per observation =======================
+    # Save chi2, TI, and Htheta ===============================================
     
 
-    # Add 1-sigma, 3-sigma
-    chi2_1sigma = calc_confidence_chi2(args.paper, chi2_min, dof, 1, args.reduce)
-    chi2_3sigma = calc_confidence_chi2(args.paper, chi2_min, dof, 3, args.reduce)
+    # Add 1-sigma, 3-sigma ====================================================
+    chi2_1sigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, 1, args.reduce)
+    chi2_3sigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, 3, args.reduce)
     
     for a in [ax, axin]:
         xmin, xmax = a.get_xlim()
-        a.hlines(chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
-        a.hlines(chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
+        a.hlines(
+            chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", 
+            label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
+        a.hlines(
+            chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", 
+            label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
         a.set_xlim([xmin, xmax])
+    # Add 1-sigma, 3-sigma ====================================================
+
 
     ## Extract parameters which give chi2_min
     TI_min = TI_new_list[idx_min]
     Htheta_min = Htheta_new_list[idx_min]
-    text = f"Minimum chi2 = {chi2_min:.2f} w/ (TI, Htheta) = ({TI_min:.2f}, {Htheta_min:.2f})"
-    ax.text(0.1, 0.95, text, size=12, transform=ax.transAxes)
-    ax.legend(bbox_to_anchor=(1.05, 1), borderaxespad=0, fontsize=8, ncol=2)
+    text = (
+        f"Minimum chi2 = {chi2_min:.2f} w/ "
+        f"(TI, Htheta) = ({TI_min:.2f}, {Htheta_min:.2f})")
+    ax.text(
+        0.1, 0.95, text, size=12, transform=ax.transAxes)
+    ax.legend(
+        bbox_to_anchor=(1.05, 1), borderaxespad=0, fontsize=8, ncol=2)
 
     # Small axis
     # Uncertainties of value of interest
