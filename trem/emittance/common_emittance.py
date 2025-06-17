@@ -368,6 +368,7 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     # Extract observation time and N
     t_list = list(set(df[key_t]))
     # Time in which scale factor to be introduced
+    # When N == 1 (i.e., photometry), no scale factor is introduced.
     t_cor_list = []
     for t in t_list:
         df_t = df[df[key_t] == t]
