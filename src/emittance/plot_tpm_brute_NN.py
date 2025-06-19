@@ -22,7 +22,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from myplot import mycolor, mymark
 
-from trem.emittance.common_emittance import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
+from trem.emittance.common_emittance import (
+    extract_flux, calc_chi2, introduce_var_scalefactor, 
+    introduce_var_scalefactor_fast, 
+    calc_confidence_chi2)
 
 
 if __name__ == "__main__":
@@ -139,19 +142,18 @@ if __name__ == "__main__":
     if args.ylim:
         y0, y1 = args.ylim
         ax.set_ylim([y0, y1])
+   
+    # Array to save results and status
+    chi2_new_list, TI_new_list, Htheta_new_list = [], [], []
+    Htheta_used = []
 
     # Calculate chi2 fixing scale factor to 1 =================================
     if fixscale:
-        chi2_new_list = []
-        TI_new_list, Htheta_new_list = [], []
-        Htheta_used = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
 
-                df_temp = df[
-                    (df["Htheta"] == Htheta) &
-                    (df["TI"] == TI)].copy()
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
                 chi2 = calc_chi2(df_temp)
                 # Use reduced chi2
                 if args.reduce:
@@ -185,55 +187,44 @@ if __name__ == "__main__":
 
     # Calculate chi2 with scale factors per observation =======================
     elif args.scale_per_obs:
-        assert False, "Not yet implemented"
-        chi2_new_list = []
-        TI_new_list, Htheta_new_list = [], []
-        Htheta_list_sort = sorted(list(set(Htheta_list)))
-        Htheta_used = []
-        for f in args.res:
-            # To check the origin of genmesh FAILED
-            #print(f)
-            # Extract fluxes with scale factor = 1
-            df_temp = extract_flux(f, fixscale=True)
-            # Introduce variable scale factors
-            df_temp = introduce_var_scalefactor(df_temp)
-            
-            # Then calculate chi2 with 'f_obs', 'scalefactor', 'f_model', 'ferr_obs'.
-            # 'scele factor' is not a constant any more
-            sf_list = set(df_temp["scalefactor"])
-            N_sf = len(sf_list)
-            #print(f"  Number of scale parameters: N_sf = {N_sf}")
-            #print(f"     {sf_list}")
-            chi2 = calc_chi2(df_temp)
-            # Use reduced chi2
-            if args.reduce:
-                chi2 = chi2/dof 
-            else:
-                pass
+        for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
+            print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
+            for idx_TI, TI in enumerate(TI_list_sort):
 
-            Htheta = np.min(df_temp["Htheta"])
-            # Index of Htheta 
-            idx_Htheta = Htheta_list_sort.index(Htheta)
-            col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
-            if Htheta not in Htheta_used:
-                label = f"Hapke angle = ({Htheta:.1f})"
-                Htheta_used.append(Htheta)
-            else:
-                label = None
-            for a in [ax, axin]:
-                a.scatter(
-                    np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
-                    facecolor="None", label=label)
-            chi2_new_list.append(chi2)
-            TI_new_list.append(TI)
-            Htheta_new_list.append(Htheta)
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
+                
+                # TODO: Check here carefully
+                # Introduce variable scale factors
+                #df_temp = introduce_var_scalefactor(df_temp)
+                df_temp = introduce_var_scalefactor_fast(df_temp)
+                chi2 = calc_chi2(df_temp)
+                # Use reduced chi2
+                if args.reduce:
+                    chi2 = chi2/dof 
+                else:
+                    pass
+
+                # Index of Htheta 
+                idx_Htheta = Htheta_list_sort.index(Htheta)
+                col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
+                if Htheta not in Htheta_used:
+                    label = f"Hapke angle = ({Htheta:.1f})"
+                    Htheta_used.append(Htheta)
+                else:
+                    label = None
+                for a in [ax, axin]:
+                    a.scatter(
+                        np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
+                chi2_new_list.append(chi2)
+                TI_new_list.append(TI)
+                Htheta_new_list.append(Htheta)
 
         # Add global minimum chi2
         chi2_min = np.min(chi2_new_list)
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
-
     # Calculate chi2 with scale factors per observation =======================
 
 
