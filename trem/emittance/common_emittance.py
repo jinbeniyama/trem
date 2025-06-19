@@ -421,3 +421,59 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     # Sort by time
     df1 = df1.sort_values(by=[key_t])
     return df1
+
+
+def introduce_var_scalefactor_fast(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
+    """
+    Faster version of introduce_var_scalefactor.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe
+    key_t : str
+        Keyword for observation time
+    sf0 : float
+        Minimum scale factor
+    sf1 : float
+        Maximum scale factor
+    sfstep : float
+        Step of scale factor
+
+    Return
+    ------
+    df1 : pandas.DataFrame
+        Output dataframe with new scale factors
+    """
+    df1_list = []
+    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+    # Group by time (epoch)
+    for t, df_t in df.groupby(key_t):
+        if len(df_t) == 1:
+            df1_list.append(df_t)
+            continue
+
+        df_t = df_t.copy()
+        f_obs = df_t["f_obs"].values
+        f_model = df_t["f_model"].values
+        ferr_obs = df_t["ferr_obs"].values
+
+        # Calc. chi2 for all scale factors
+        # shape (N_sf, 1)
+        sf_array = sf_list[:, None]  
+        residual = (f_obs - (sf_array**2) * f_model) / ferr_obs
+        chi2_array = np.sum(residual**2, axis=1)
+
+        best_idx = np.argmin(chi2_array)
+        best_sf = sf_list[best_idx]
+        df_t["scalefactor"] = best_sf
+
+        if "diff" in df_t.columns:
+            df_t = df_t.drop(columns=["diff"])
+
+        df1_list.append(df_t)
+
+    df1 = pd.concat(df1_list)
+    df1 = df1.sort_values(by=[key_t])
+    return df1
