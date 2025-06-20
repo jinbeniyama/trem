@@ -116,7 +116,7 @@ if __name__ == "__main__":
         N_TIrock = len(TIrock_list)
         TIrego_list = [x for x in TI_list if x <= TI_thresh]
         N_TIrego = len(TIrego_list)
-        print(f"Let's divide TI with TI_thresh = {TI_thresh:.2f}")
+        print(f"Let's divide TI values into two with TI_thresh = {TI_thresh:.2f}")
         print(f"      N_TI          = {N_TI}")
         print(f"      N_TIrock      = {N_TIrock}")
         print(f"      N_TIrego      = {N_TIrego}")
