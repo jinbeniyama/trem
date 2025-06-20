@@ -136,7 +136,7 @@ if __name__ == "__main__":
             # But it is better to consider later.
             T_typical = args.T_typical
             # Determine a TI_threshold with TI_rock
-            # (See util_Cambioni2021.py for detail)
+            # (See trem/emittance/util_Cambioni2021.py for detail)
             _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj)
 
             # Make lists of TIrock and TIrego with a given TI_thresh
@@ -152,7 +152,7 @@ if __name__ == "__main__":
             print("")
 
  
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =========
+            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             N_comb = int(N_Htheta*N_TIrego*N_TIrock)
             idx_all = 1
             
@@ -174,9 +174,9 @@ if __name__ == "__main__":
                         df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
                         df_rock = df_rock.reset_index(drop=True)
 
-                        # Combine two dataframe and 
-                        #    return search best alpha and chi2 (with fitalpha == True)
-                        # Results are already fit by alpha
+                        # Combine two dataframe and return only alpha which gives
+                        # the minimum chi2
+                        # Note: results are already fit by alpha
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, True)
                         # Save info.
@@ -187,10 +187,10 @@ if __name__ == "__main__":
 
                         # Update index
                         idx_all += 1
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =========
+            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             
-            # Determine the best fit parameters (note: alpha is already fit)
-            # TI_rock, TI_rego, Htheta
+            # Determine the best fit parameters (TI_rock, TI_rego, Htheta)
+            # Note: alpha is already fit)
             key_chi2 = "chi2"
             # Use only TIrock to check the convergence
             params = ["TIrock"]
