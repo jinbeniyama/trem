@@ -165,7 +165,7 @@ if __name__ == "__main__":
                 print(f"  Htheta = {Htheta:.2f}")
                 # Loop for TI of regolith
                 for idx_TIrego, TIrego in enumerate(TIrego_list):
-                    # Extract fluxes of regolith (frego)
+                    # Extract fluxes of regolith
                     df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)]
                     df_rego = df_rego.reset_index(drop=True)
 
@@ -228,13 +228,13 @@ if __name__ == "__main__":
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
-            # Extract fluxes of regolith (frego)
+            # Extract fluxes of regolith
             df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)]
             df_rego = df_rego.reset_index(drop=True)
 
             # Loop for TI of rock
             for idx_TIrock, TIrock in enumerate(TIrock_list):
-                # Extract fluxes of rock (frock)
+                # Extract fluxes of rock
                 df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
                 df_rock = df_rock.reset_index(drop=True)
 
