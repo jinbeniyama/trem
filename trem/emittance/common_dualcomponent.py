@@ -211,8 +211,8 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
 
         if minonly:
             if chi2 < chi2_min:
-                chi2_arr = [chi2]
                 alpha_arr = [a]
+                chi2_arr = [chi2]
                 chi2_min = chi2
             else:
                 pass
