@@ -17,6 +17,7 @@ TODO
 bond albedo, A, is always fixed?? For Eros, yes.
 """
 import os 
+import sys
 from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
@@ -77,10 +78,14 @@ if __name__ == "__main__":
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
     chi2_min0 = args.chi2_min0
-    if args.fixscale:
-        print("Scale factors are assumed to be 1.")
+    if args.fixscale & args.scale_per_obs:
+        print("  Choose either fixscale or scale_per_obs.")
+        print("  Exit")
+        sys.exit()
+    elif args.fixscale:
+        print("  Scale factors are assumed to be 1.")
     elif args.scale_per_obs:
-        print("Scale factors are introduced per epoch. (only for spectroscopy)")
+        print("  Scale factors are introduced per epoch. (only for spectroscopy)")
     # Parse arguments =========================================================
 
     # Read files 
