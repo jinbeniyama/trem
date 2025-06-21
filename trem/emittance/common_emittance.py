@@ -339,6 +339,47 @@ def calc_confidence_chi2(paper, chi2_min, dof, n, reduce):
     return chi2_sigma
 
 
+def extract_unique_epoch(df, key_t):
+    """Extract unique epoch in the dataframe.
+
+    The dataframes of photometry which do not need scale factors 
+    are also returned.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        input dataframe
+    key_t : str
+        keyword for epoch 
+
+    Returns
+    -------
+    t_unique_list : array-like
+        list of unique epoch
+    df_phot_list : array-like
+        list of data frames of photometry
+    """
+
+    # Extract observation time and N
+    t_list = list(set(df[key_t]))
+    # Time in which scale factor to be introduced
+    # When N == 1 (i.e., photometry), no scale factor is introduced.
+    t_unique_list = []
+    df_phot_list = []
+    for t in t_list:
+        df_t = df[df[key_t] == t]
+        N_t = len(df_t)
+        #print(f"{key_t}={t} N={N_t}")
+        # Do not introduce scale factor when N = 1 (i.e., photometry)
+        if N_t > 1:
+            t_unique_list.append(t)
+        else:
+            # Add into list of updated dataframe
+            df_phot_list.append(df_t)
+
+    return t_unique_list, df_phot_list
+
+
 def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     """
     Introduce variable scale factors per observation.
@@ -361,25 +402,8 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     df1 : pandas.DataFrame
         output dataframe with new scale factors
     """
-
-    # Updated dataframe
-    df1_list = []
-
-    # Extract observation time and N
-    t_list = list(set(df[key_t]))
-    # Time in which scale factor to be introduced
-    # When N == 1 (i.e., photometry), no scale factor is introduced.
-    t_cor_list = []
-    for t in t_list:
-        df_t = df[df[key_t] == t]
-        N_t = len(df_t)
-        #print(f"{key_t}={t} N={N_t}")
-        # Do not introduce scale factor when N = 1 (i.e., photometry)
-        if N_t > 1:
-            t_cor_list.append(t)
-        else:
-            # Add into list of updated dataframe
-            df1_list.append(df_t)
+    # Updated dataframe (incl. photometry at the moment)
+    t_cor_list, df1_list = extract_unique_epoch(df, key_t)
 
     N_sf = len(t_cor_list)
     print(f"      Number of scale factors = {N_sf}")
