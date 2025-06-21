@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from trem.emittance.common_emittance import (
-    extract_flux, crater2Htheta, extract_bestparam)
+    extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor)
 from trem.emittance.common_dualcomponent import search_regolith_abundance
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
@@ -56,6 +56,9 @@ if __name__ == "__main__":
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
     parser.add_argument(
+        "--scale_per_obs", action="store_true", default=False,
+        help="Use scale factors per observation")
+    parser.add_argument(
         "--fitalpha", action="store_true", default=False,
         help="Fit with alpha")
     parser.add_argument(
@@ -74,6 +77,10 @@ if __name__ == "__main__":
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
     chi2_min0 = args.chi2_min0
+    if args.fixscale:
+        print("Scale factors are assumed to be 1.")
+    elif args.scale_per_obs:
+        print("Scale factors are introduced per epoch. (only for spectroscopy)")
     # Parse arguments =========================================================
 
     # Read files 
@@ -106,6 +113,8 @@ if __name__ == "__main__":
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
     print(f"List of regolith abundance: {alpha_list}")
     print("")
+    
+
 
 
     if args.TI_thresh:
@@ -177,6 +186,9 @@ if __name__ == "__main__":
                         # Combine two dataframe and return only alpha which gives
                         # the minimum chi2
                         # Note: results are already fit by alpha
+                        # Note: scale factors are assumed to be 1
+                        # TODO: Should we introduce scale factors 
+                        # as free parameters here as well?
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, True)
                         # Save info.
@@ -223,6 +235,7 @@ if __name__ == "__main__":
 
     # Loop for Htheta (i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
+
     for idx_Htheta, Htheta, in enumerate(Htheta_list):
         print(f"  Htheta = {Htheta:.2f}")
 
@@ -238,10 +251,26 @@ if __name__ == "__main__":
                 df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
                 df_rock = df_rock.reset_index(drop=True)
 
-                # Combine two dataframe and
-                # return all alpha and chi2         (if fitalpha == False)
-                alpha_arr, chi2_arr = search_regolith_abundance(
-                    df_rego, df_rock, alpha_list, chi2_min0, False)
+                # wo/ scale factors
+                if fixscale:
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: results are already fit by alpha
+                    # Note: scale factors are assumed to be 1
+                    alpha_arr, chi2_arr = search_regolith_abundance(
+                        df_rego, df_rock, alpha_list, chi2_min0, False, False)
+
+                # w/ scale factors for spectra (not for photometry)
+                elif args.scale_per_obs:
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: Results are already fit by alpha
+                    # Note: Scale factors are introduced.
+                    #       Results are already fit by the scale factors.
+                    alpha_arr, chi2_arr = search_regolith_abundance(
+                        df_rego, df_rock, alpha_list, chi2_min0, False, True)
+                    assert False, "In prep."
+
                 # Save info.
                 for a, c in zip(alpha_arr, chi2_arr):
                     #print(f"  -> alpha, chi2 = {a:.2f}, {c:.2f}")
