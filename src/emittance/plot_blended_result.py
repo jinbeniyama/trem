@@ -45,6 +45,7 @@ if __name__ == "__main__":
     N_all = len(df)
     title = f"TI_th = {args.TI_thresh}"
 
+
     dof = args.dof
     # Calculate reduced chi2 
     if args.reduce:
@@ -123,7 +124,7 @@ if __name__ == "__main__":
     # Add minimum value
 
     label_min = (
-            f"Minimum chi2 {chi2_min:.2f} at (TIrego, TIrock, Htheta, alpha) = ({TIrego_min:.1f}, {TIrock_min:.1f}, {Htheta_min:.1f}, {alpha_min:.2f})")
+            f"Minimum chi2 {chi2_min:.4f} at (TIrego, TIrock, Htheta, alpha) = ({TIrego_min:.2f}, {TIrock_min:.2f}, {Htheta_min:.2f}, {alpha_min:.2f})")
     ax.scatter(
         df.loc[idx_min, key_x], df.loc[idx_min, key_y], df.loc[idx_min, key_z], 
         color="red", marker="x", s=100, label=label_min)
