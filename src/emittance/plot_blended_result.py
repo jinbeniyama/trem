@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Plot 3-d color-map with (x, y, z) = (TI of rocks, TI of regolith, Hapke angle)
@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from tpmwrapper.common import calc_confidence_chi2
+from trem.emittance.common_emittance import calc_confidence_chi2
 
 
 if __name__ == "__main__":
