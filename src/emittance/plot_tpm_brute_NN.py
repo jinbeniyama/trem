@@ -4,7 +4,12 @@
 Plot results of TPM with NN using a brute-force method.
 
 w/ fixscale argument
-    Can fix scale parameter (recalculate chi-squared in the code)
+    Can fix scale parameter (calculate chi-squared in the code)
+
+w/ scale_all argument
+    Can introduce a global scale factor 's' in this code.
+    The calculated chi-squared is essentially the same as those in the outputs 
+    of Marco's TPM code.
 
 w/ scale_per_obs argument
     Can introduce new scale factors 's_j' (j: observation time) in this code. 
@@ -23,7 +28,9 @@ import matplotlib.pyplot as plt
 from myplot import mycolor, mymark
 
 from trem.emittance.common_emittance import (
-    extract_flux, calc_chi2, introduce_var_scalefactor, 
+    extract_flux, calc_chi2, 
+    introduce_global_scalefactor, 
+    introduce_var_scalefactor, 
     introduce_var_scalefactor_fast, 
     calc_confidence_chi2)
 
@@ -42,6 +49,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
+    parser.add_argument(
+        "--scale_all", action="store_true", default=False,
+        help="Use global scale factor")
     parser.add_argument(
         "--scale_per_obs", action="store_true", default=False,
         help="Use scale factors per observation")
@@ -76,6 +86,8 @@ if __name__ == "__main__":
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
+    scale_all = args.scale_all
+    scale_per_obs = args.scale_per_obs
     # Parse arguments =========================================================
 
     # Parameter of interest in X label
@@ -185,8 +197,50 @@ if __name__ == "__main__":
     # Calculate chi2 fixing scale factor to 1 =================================
 
 
+    # Calculate chi2 with a global scale factor ===============================
+    elif scale_all:
+        for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
+            print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
+            for idx_TI, TI in enumerate(TI_list_sort):
+
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
+                
+                # TODO: Check here carefully
+                # Introduce global scale factors
+                df_temp = introduce_global_scalefactor(df_temp)
+                chi2 = calc_chi2(df_temp)
+                # Use reduced chi2
+                if args.reduce:
+                    chi2 = chi2/dof 
+                else:
+                    pass
+
+                # Index of Htheta 
+                idx_Htheta = Htheta_list_sort.index(Htheta)
+                col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
+                if Htheta not in Htheta_used:
+                    label = f"Hapke angle = ({Htheta:.1f})"
+                    Htheta_used.append(Htheta)
+                else:
+                    label = None
+                for a in [ax, axin]:
+                    a.scatter(
+                        np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
+                chi2_new_list.append(chi2)
+                TI_new_list.append(TI)
+                Htheta_new_list.append(Htheta)
+
+        # Add global minimum chi2
+        chi2_min = np.min(chi2_new_list)
+        # Index of global chi2_min
+        idx_min = chi2_new_list.index(min(chi2_new_list))
+        chi2_arr = np.array(chi2_new_list)
+    # Calculate chi2 with a global scale factor ===============================
+
+
     # Calculate chi2 with scale factors per observation =======================
-    elif args.scale_per_obs:
+    elif scale_per_obs:
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
