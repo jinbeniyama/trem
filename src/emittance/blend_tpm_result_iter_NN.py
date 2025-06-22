@@ -64,9 +64,6 @@ if __name__ == "__main__":
         "--fitalpha", action="store_true", default=False,
         help="Fit with alpha")
     parser.add_argument(
-        "--N_param", type=int, default=2,
-        help="Number of parameters")
-    parser.add_argument(
         "--out", type=str, default="res.txt",
         help="Output file")
     parser.add_argument(
@@ -104,10 +101,6 @@ if __name__ == "__main__":
 
     # Number of data points
     N_data = len(df_temp)
-
-    # Calculate degree of freedom
-    N_param = args.N_param
-    dof = N_data - N_param
 
     # Start iterative process =================================================
     print("Start iterative process to determine TI_threshold (a.k.a., Gamma_c)")
