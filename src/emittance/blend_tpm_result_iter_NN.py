@@ -58,6 +58,9 @@ if __name__ == "__main__":
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
     parser.add_argument(
+        "--scale_all", action="store_true", default=False,
+        help="Use global scale factor")
+    parser.add_argument(
         "--scale_per_obs", action="store_true", default=False,
         help="Use scale factors per observation")
     parser.add_argument(
@@ -75,6 +78,7 @@ if __name__ == "__main__":
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
+    scale_all = args.scale_all
     scale_per_obs = args.scale_per_obs
     chi2_min0 = args.chi2_min0
     if fixscale & scale_per_obs:
@@ -232,6 +236,9 @@ if __name__ == "__main__":
     # Make DataFrame to register chi2
     if fixscale:
         column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+    elif scale_all:
+        # Note: This scale factor is applied for both spec. and phot.
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
     elif scale_per_obs:
         # Note: This scale factor is only applied for spectroscopy.
         column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
@@ -264,8 +271,39 @@ if __name__ == "__main__":
                     alpha_arr, chi2_arr = search_regolith_abundance(
                         df_rego, df_rock, alpha_list, chi2_min0, False)
 
+                # w/ global scale factors
+                elif scale_all:
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: Results are already fit by alpha
+                    # Note: Scale factors are introduced.
+                    #       Results are already fit by the scale factors.
+
+                    # TODO: As free parameters
+                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+                    key_t = "jd"
+                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+
+                    for sf in sf_list:
+                        # Introduce scale factors for both spec. and phot.
+                        df_rego.loc[:, "scalefactor"] = sf
+                        df_rock.loc[:, "scalefactor"] = sf
+
+                        sf_list1 = list(set(df_rego.scalefactor))
+                        #print(f"  Unique scale factors: {sf_list1}")
+                        alpha_arr, chi2_arr = search_regolith_abundance(
+                            df_rego, df_rock, alpha_list, chi2_min0, False)
+                        # Save info.
+                        for a, c in zip(alpha_arr, chi2_arr):
+                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf:.3f}")
+                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+
                 # w/ scale factors for spectra (not for photometry)
                 elif scale_per_obs:
+
+                    assert False, "in prep."
                     # Combine two dataframe and return only alpha which gives
                     # the minimum chi2
                     # Note: Results are already fit by alpha
