@@ -109,6 +109,8 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
         initial chi2 minimum
     minonly : bool
         return minimum chi2 and corresponding alpha (i.e., fit by alpha)
+    sf : bool
+        introduce scale parameters per epoch (only for spectra)
 
     Returns
     -------
@@ -118,6 +120,7 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
         array of chi2
     """
     alpha_arr, chi2_arr = [], []
+    
     for a in alpha_list:
         # Blend flux as 
         #   F = alpha*F_regolith*s1^2 + (1-alpha)*F_rock*s2^2,
@@ -136,6 +139,7 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
         else:
             alpha_arr.append(a)
             chi2_arr.append(chi2)
+
     return alpha_arr, chi2_arr
 
 
