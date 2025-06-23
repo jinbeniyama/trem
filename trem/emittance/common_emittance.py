@@ -380,6 +380,49 @@ def extract_unique_epoch(df, key_t):
     return t_unique_list, df_phot_list
 
 
+def introduce_global_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
+    """
+    Introduce global scale factor for all observations.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe
+    key_t : str
+        Keyword for observation time
+    sf0 : float
+        Minimum scale factor
+    sf1 : float
+        Maximum scale factor
+    sfstep : float
+        Step of scale factor
+
+    Return
+    ------
+    df : pandas.DataFrame
+        Output dataframe with new scale factors
+    """
+    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+    f_obs = df["f_obs"].values
+    f_model = df["f_model"].values
+    ferr_obs = df["ferr_obs"].values
+
+    # Calc. chi2
+    # shape (N_sf, 1)
+    sf_array = sf_list[:, None]  
+    residual = (f_obs - (sf_array**2) * f_model) / ferr_obs
+    chi2_array = np.sum(residual**2, axis=1)
+
+    best_idx = np.argmin(chi2_array)
+    best_sf = sf_list[best_idx]
+    print(f"Best scale factors: {best_sf:.2f}")
+    # Update scale factor
+    df["scalefactor"] = best_sf
+
+    return df
+
+# Probably useless. To be removed.
 def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     """
     Introduce variable scale factors per observation.
