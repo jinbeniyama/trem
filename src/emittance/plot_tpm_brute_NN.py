@@ -4,7 +4,12 @@
 Plot results of TPM with NN using a brute-force method.
 
 w/ fixscale argument
-    Can fix scale parameter (recalculate chi-squared in the code)
+    Can fix scale parameter (calculate chi-squared in the code)
+
+w/ scale_all argument
+    Can introduce a global scale factor 's' in this code.
+    The calculated chi-squared is essentially the same as those in the outputs 
+    of Marco's TPM code.
 
 w/ scale_per_obs argument
     Can introduce new scale factors 's_j' (j: observation time) in this code. 
@@ -12,10 +17,8 @@ w/ scale_per_obs argument
 
 Example
 -------
-# A vs. chi square
-> plot_tpm.py tpmout* -x A --out result_A.jpg
 # TI (thermal inertia) vs. chi square
-> plot_tpm.py tpmout* -x TI --out result_TI.jpg
+> plot_tpm_brute_NN.py NN_TPMres.txt (file preprocessed by predict_flux_NN.py) -x TI --out result_TI.jpg
 """
 import os 
 from argparse import ArgumentParser as ap
@@ -24,7 +27,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from myplot import mycolor, mymark
 
-from trem.emittance.common_emittance import extract_flux, calc_chi2, introduce_var_scalefactor, calc_confidence_chi2
+from trem.emittance.common_emittance import (
+    extract_flux, calc_chi2, 
+    introduce_global_scalefactor, 
+    introduce_var_scalefactor, 
+    introduce_var_scalefactor_fast, 
+    calc_confidence_chi2)
 
 
 if __name__ == "__main__":
@@ -41,6 +49,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
+    parser.add_argument(
+        "--scale_all", action="store_true", default=False,
+        help="Use global scale factor")
     parser.add_argument(
         "--scale_per_obs", action="store_true", default=False,
         help="Use scale factors per observation")
@@ -75,22 +86,10 @@ if __name__ == "__main__":
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
+    scale_all = args.scale_all
+    scale_per_obs = args.scale_per_obs
     # Parse arguments =========================================================
 
-
-    # Read files 
-    df = pd.read_csv(args.res, sep=" ")
-    # Add dummy
-    df["scalefactor"] = 1
-    Htheta_list_sort = sorted(list(set(df["Htheta"])))
-    TI_list_sort = sorted(list(set(df["TI"])))
-    df_temp = df[
-        (df["Htheta"] == Htheta_list_sort[0]) & 
-        (df["TI"] == TI_list_sort[0])
-        ]
-    # Number of data points
-    N_data = len(df_temp)
-    
     # Parameter of interest in X label
     val = args.x
     if val == "A":
@@ -101,6 +100,21 @@ if __name__ == "__main__":
         xlabel = "Crater opening angle [deg]"
     elif val == "CR":
         xlabel = "Crater covering ratio"
+
+
+    # Read files 
+    df = pd.read_csv(args.res, sep=" ")
+    # Add dummy
+    df["scalefactor"] = 1
+    Htheta_list_sort = sorted(list(set(df["Htheta"])))
+    TI_list_sort = sorted(list(set(df["TI"])))
+    # Extract data with a Htheta and a TI
+    df_temp = df[
+        (df["Htheta"] == Htheta_list_sort[0]) & 
+        (df["TI"] == TI_list_sort[0])
+        ]
+    # Number of data points
+    N_data = len(df_temp)
      
 
     # Calculate dof ===========================================================
@@ -140,19 +154,18 @@ if __name__ == "__main__":
     if args.ylim:
         y0, y1 = args.ylim
         ax.set_ylim([y0, y1])
+   
+    # Array to save results and status
+    chi2_new_list, TI_new_list, Htheta_new_list = [], [], []
+    Htheta_used = []
 
     # Calculate chi2 fixing scale factor to 1 =================================
     if fixscale:
-        chi2_new_list = []
-        TI_new_list, Htheta_new_list = [], []
-        Htheta_used = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
 
-                df_temp = df[
-                    (df["Htheta"] == Htheta) &
-                    (df["TI"] == TI)].copy()
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
                 chi2 = calc_chi2(df_temp)
                 # Use reduced chi2
                 if args.reduce:
@@ -184,58 +197,92 @@ if __name__ == "__main__":
     # Calculate chi2 fixing scale factor to 1 =================================
 
 
-    # Calculate chi2 with scale factors per observation =======================
-    elif args.scale_per_obs:
-        assert False, "Not yet implemented"
-        chi2_new_list = []
-        TI_new_list, Htheta_new_list = [], []
-        Htheta_list_sort = sorted(list(set(Htheta_list)))
-        Htheta_used = []
-        for f in args.res:
-            # To check the origin of genmesh FAILED
-            #print(f)
-            # Extract fluxes with scale factor = 1
-            df_temp = extract_flux(f, fixscale=True)
-            # Introduce variable scale factors
-            df_temp = introduce_var_scalefactor(df_temp)
-            
-            # Then calculate chi2 with 'f_obs', 'scalefactor', 'f_model', 'ferr_obs'.
-            # 'scele factor' is not a constant any more
-            sf_list = set(df_temp["scalefactor"])
-            N_sf = len(sf_list)
-            #print(f"  Number of scale parameters: N_sf = {N_sf}")
-            #print(f"     {sf_list}")
-            chi2 = calc_chi2(df_temp)
-            # Use reduced chi2
-            if args.reduce:
-                chi2 = chi2/dof 
-            else:
-                pass
+    # Calculate chi2 with a global scale factor ===============================
+    elif scale_all:
+        for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
+            print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
+            for idx_TI, TI in enumerate(TI_list_sort):
 
-            Htheta = np.min(df_temp["Htheta"])
-            # Index of Htheta 
-            idx_Htheta = Htheta_list_sort.index(Htheta)
-            col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
-            if Htheta not in Htheta_used:
-                label = f"Hapke angle = ({Htheta:.1f})"
-                Htheta_used.append(Htheta)
-            else:
-                label = None
-            for a in [ax, axin]:
-                a.scatter(
-                    np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
-                    facecolor="None", label=label)
-            chi2_new_list.append(chi2)
-            TI_new_list.append(TI)
-            Htheta_new_list.append(Htheta)
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
+                
+                # TODO: Check here carefully
+                # Introduce global scale factors
+                df_temp = introduce_global_scalefactor(df_temp)
+                chi2 = calc_chi2(df_temp)
+                # Use reduced chi2
+                if args.reduce:
+                    chi2 = chi2/dof 
+                else:
+                    pass
+
+                # Index of Htheta 
+                idx_Htheta = Htheta_list_sort.index(Htheta)
+                col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
+                if Htheta not in Htheta_used:
+                    label = f"Hapke angle = ({Htheta:.1f})"
+                    Htheta_used.append(Htheta)
+                else:
+                    label = None
+                for a in [ax, axin]:
+                    a.scatter(
+                        np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
+                chi2_new_list.append(chi2)
+                TI_new_list.append(TI)
+                Htheta_new_list.append(Htheta)
 
         # Add global minimum chi2
         chi2_min = np.min(chi2_new_list)
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
+    # Calculate chi2 with a global scale factor ===============================
 
-    # Save them
+
+    # Calculate chi2 with scale factors per observation =======================
+    elif scale_per_obs:
+        for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
+            print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
+            for idx_TI, TI in enumerate(TI_list_sort):
+
+                df_temp = df[(df["Htheta"] == Htheta) & (df["TI"] == TI)].copy()
+                
+                # TODO: Check here carefully
+                # Introduce variable scale factors
+                #df_temp = introduce_var_scalefactor(df_temp)
+                df_temp = introduce_var_scalefactor_fast(df_temp)
+                chi2 = calc_chi2(df_temp)
+                # Use reduced chi2
+                if args.reduce:
+                    chi2 = chi2/dof 
+                else:
+                    pass
+
+                # Index of Htheta 
+                idx_Htheta = Htheta_list_sort.index(Htheta)
+                col, mark = mycolor[idx_Htheta], mymark[idx_Htheta]
+                if Htheta not in Htheta_used:
+                    label = f"Hapke angle = ({Htheta:.1f})"
+                    Htheta_used.append(Htheta)
+                else:
+                    label = None
+                for a in [ax, axin]:
+                    a.scatter(
+                        np.min(df_temp[val]), chi2, color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
+                chi2_new_list.append(chi2)
+                TI_new_list.append(TI)
+                Htheta_new_list.append(Htheta)
+
+        # Add global minimum chi2
+        chi2_min = np.min(chi2_new_list)
+        # Index of global chi2_min
+        idx_min = chi2_new_list.index(min(chi2_new_list))
+        chi2_arr = np.array(chi2_new_list)
+    # Calculate chi2 with scale factors per observation =======================
+
+
+    # Save chi2, TI, and Htheta ===============================================
     if args.out_df:
         df_out = pd.DataFrame({
             "chi2": chi2_new_list,
@@ -244,25 +291,37 @@ if __name__ == "__main__":
             })
         out_df = os.path.join(args.outdir, args.out_df)
         df_out.to_csv(out_df, sep=" ")
-    # Calculate chi2 with scale factors per observation =======================
+    # Save chi2, TI, and Htheta ===============================================
     
 
-    # Add 1-sigma, 3-sigma
-    chi2_1sigma = calc_confidence_chi2(args.paper, chi2_min, dof, 1, args.reduce)
-    chi2_3sigma = calc_confidence_chi2(args.paper, chi2_min, dof, 3, args.reduce)
+    # Add 1-sigma, 3-sigma ====================================================
+    chi2_1sigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, 1, args.reduce)
+    chi2_3sigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, 3, args.reduce)
     
     for a in [ax, axin]:
         xmin, xmax = a.get_xlim()
-        a.hlines(chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
-        a.hlines(chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
+        a.hlines(
+            chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", 
+            label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
+        a.hlines(
+            chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", 
+            label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
         a.set_xlim([xmin, xmax])
+    # Add 1-sigma, 3-sigma ====================================================
+
 
     ## Extract parameters which give chi2_min
     TI_min = TI_new_list[idx_min]
     Htheta_min = Htheta_new_list[idx_min]
-    text = f"Minimum chi2 = {chi2_min:.2f} w/ (TI, Htheta) = ({TI_min:.2f}, {Htheta_min:.2f})"
-    ax.text(0.1, 0.95, text, size=12, transform=ax.transAxes)
-    ax.legend(bbox_to_anchor=(1.05, 1), borderaxespad=0, fontsize=8, ncol=2)
+    text = (
+        f"Minimum chi2 = {chi2_min:.2f} w/ "
+        f"(TI, Htheta) = ({TI_min:.2f}, {Htheta_min:.2f})")
+    ax.text(
+        0.1, 0.95, text, size=12, transform=ax.transAxes)
+    ax.legend(
+        bbox_to_anchor=(1.05, 1), borderaxespad=0, fontsize=8, ncol=2)
 
     # Small axis
     # Uncertainties of value of interest

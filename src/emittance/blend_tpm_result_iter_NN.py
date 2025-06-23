@@ -17,12 +17,14 @@ TODO
 bond albedo, A, is always fixed?? For Eros, yes.
 """
 import os 
+import sys
 from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
 
 from trem.emittance.common_emittance import (
-    extract_flux, crater2Htheta, extract_bestparam)
+    extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor,
+    extract_unique_epoch)
 from trem.emittance.common_dualcomponent import search_regolith_abundance
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
@@ -56,11 +58,14 @@ if __name__ == "__main__":
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
     parser.add_argument(
+        "--scale_all", action="store_true", default=False,
+        help="Use global scale factor")
+    parser.add_argument(
+        "--scale_per_obs", action="store_true", default=False,
+        help="Use scale factors per observation")
+    parser.add_argument(
         "--fitalpha", action="store_true", default=False,
         help="Fit with alpha")
-    parser.add_argument(
-        "--N_param", type=int, default=2,
-        help="Number of parameters")
     parser.add_argument(
         "--out", type=str, default="res.txt",
         help="Output file")
@@ -73,7 +78,17 @@ if __name__ == "__main__":
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
     fixscale = args.fixscale
+    scale_all = args.scale_all
+    scale_per_obs = args.scale_per_obs
     chi2_min0 = args.chi2_min0
+    if fixscale & scale_per_obs:
+        print("  Choose either fixscale or scale_per_obs.")
+        print("  Exit")
+        sys.exit()
+    elif fixscale:
+        print("  Scale factors are assumed to be 1.")
+    elif scale_per_obs:
+        print("  Scale factors are introduced per epoch. (only for spectroscopy)")
     # Parse arguments =========================================================
 
     # Read files 
@@ -91,10 +106,6 @@ if __name__ == "__main__":
     # Number of data points
     N_data = len(df_temp)
 
-    # Calculate degree of freedom
-    N_param = args.N_param
-    dof = N_data - N_param
-
     # Start iterative process =================================================
     print("Start iterative process to determine TI_threshold (a.k.a., Gamma_c)")
     print("")
@@ -106,6 +117,8 @@ if __name__ == "__main__":
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
     print(f"List of regolith abundance: {alpha_list}")
     print("")
+    
+
 
 
     if args.TI_thresh:
@@ -116,7 +129,7 @@ if __name__ == "__main__":
         N_TIrock = len(TIrock_list)
         TIrego_list = [x for x in TI_list if x <= TI_thresh]
         N_TIrego = len(TIrego_list)
-        print(f"Let's divide TI with TI_thresh = {TI_thresh:.2f}")
+        print(f"Let's divide TI values into two with TI_thresh = {TI_thresh:.2f}")
         print(f"      N_TI          = {N_TI}")
         print(f"      N_TIrock      = {N_TIrock}")
         print(f"      N_TIrego      = {N_TIrego}")
@@ -136,7 +149,7 @@ if __name__ == "__main__":
             # But it is better to consider later.
             T_typical = args.T_typical
             # Determine a TI_threshold with TI_rock
-            # (See util_Cambioni2021.py for detail)
+            # (See trem/emittance/util_Cambioni2021.py for detail)
             _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj)
 
             # Make lists of TIrock and TIrego with a given TI_thresh
@@ -152,7 +165,7 @@ if __name__ == "__main__":
             print("")
 
  
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =========
+            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             N_comb = int(N_Htheta*N_TIrego*N_TIrock)
             idx_all = 1
             
@@ -165,7 +178,7 @@ if __name__ == "__main__":
                 print(f"  Htheta = {Htheta:.2f}")
                 # Loop for TI of regolith
                 for idx_TIrego, TIrego in enumerate(TIrego_list):
-                    # Extract fluxes of regolith (frego)
+                    # Extract fluxes of regolith
                     df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)]
                     df_rego = df_rego.reset_index(drop=True)
 
@@ -174,9 +187,12 @@ if __name__ == "__main__":
                         df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
                         df_rock = df_rock.reset_index(drop=True)
 
-                        # Combine two dataframe and 
-                        #    return search best alpha and chi2 (with fitalpha == True)
-                        # Results are already fit by alpha
+                        # Combine two dataframe and return only alpha which gives
+                        # the minimum chi2
+                        # Note: results are already fit by alpha
+                        # Note: scale factors are assumed to be 1
+                        # TODO: Should we introduce scale factors 
+                        # as free parameters here as well?
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, True)
                         # Save info.
@@ -187,10 +203,10 @@ if __name__ == "__main__":
 
                         # Update index
                         idx_all += 1
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =========
+            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             
-            # Determine the best fit parameters (note: alpha is already fit)
-            # TI_rock, TI_rego, Htheta
+            # Determine the best fit parameters (TI_rock, TI_rego, Htheta)
+            # Note: alpha is already fit)
             key_chi2 = "chi2"
             # Use only TIrock to check the convergence
             params = ["TIrock"]
@@ -218,33 +234,106 @@ if __name__ == "__main__":
     # Save the results when TI_th is converged.
     # (inherit TIrego_list and TIrock_list)
     # Make DataFrame to register chi2
-    column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+    if fixscale:
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+    elif scale_all:
+        # Note: This scale factor is applied for both spec. and phot.
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
+    elif scale_per_obs:
+        # Note: This scale factor is only applied for spectroscopy.
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
     df = pd.DataFrame(columns=column)
 
     # Loop for Htheta (i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
+
     for idx_Htheta, Htheta, in enumerate(Htheta_list):
         print(f"  Htheta = {Htheta:.2f}")
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
-            # Extract fluxes of regolith (frego)
-            df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)]
+            # Extract fluxes of regolith
+            df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)].copy()
             df_rego = df_rego.reset_index(drop=True)
 
             # Loop for TI of rock
             for idx_TIrock, TIrock in enumerate(TIrock_list):
-                # Extract fluxes of rock (frock)
-                df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
+                # Extract fluxes of rock
+                df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)].copy()
                 df_rock = df_rock.reset_index(drop=True)
 
-                # Combine two dataframe and
-                # return all alpha and chi2         (if fitalpha == False)
-                alpha_arr, chi2_arr = search_regolith_abundance(
-                    df_rego, df_rock, alpha_list, chi2_min0, False)
-                # Save info.
-                for a, c in zip(alpha_arr, chi2_arr):
-                    #print(f"  -> alpha, chi2 = {a:.2f}, {c:.2f}")
-                    df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c]
+                # wo/ scale factors
+                if fixscale:
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: results are already fit by alpha
+                    # Note: scale factors are assumed to be 1
+                    alpha_arr, chi2_arr = search_regolith_abundance(
+                        df_rego, df_rock, alpha_list, chi2_min0, False)
+
+                # w/ global scale factors
+                elif scale_all:
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: Results are already fit by alpha
+                    # Note: Scale factors are introduced.
+                    #       Results are already fit by the scale factors.
+
+                    # TODO: As free parameters
+                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+                    key_t = "jd"
+                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+
+                    for sf in sf_list:
+                        # Introduce scale factors for both spec. and phot.
+                        df_rego.loc[:, "scalefactor"] = sf
+                        df_rock.loc[:, "scalefactor"] = sf
+
+                        sf_list1 = list(set(df_rego.scalefactor))
+                        #print(f"  Unique scale factors: {sf_list1}")
+                        alpha_arr, chi2_arr = search_regolith_abundance(
+                            df_rego, df_rock, alpha_list, chi2_min0, False)
+                        # Save info.
+                        for a, c in zip(alpha_arr, chi2_arr):
+                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf:.3f}")
+                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+
+                # w/ scale factors for spectra (not for photometry)
+                elif scale_per_obs:
+
+                    assert False, "in prep."
+                    # Combine two dataframe and return only alpha which gives
+                    # the minimum chi2
+                    # Note: Results are already fit by alpha
+                    # Note: Scale factors are introduced.
+                    #       Results are already fit by the scale factors.
+
+                    # TODO: As free parameters
+                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+                    #N_epoch_rego = len(list(set(df_rego["jd"])))
+                    #N_epoch_rock = len(list(set(df_rock["jd"])))
+                    #print(f"N_epoch in df_rego: {N_epoch_rego}")
+                   # print(f"N_epoch in df_rock: {N_epoch_rock}")
+                    # Either is fine (df_rego or df_rock)
+                    key_t = "jd"
+                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+
+                    for sf in sf_list:
+                        # Introduce scale factors only for photometry
+                        df_rego.loc[df_rego["jd"].isin(t_unique_list), "scalefactor"] = sf
+                        df_rock.loc[df_rock["jd"].isin(t_unique_list), "scalefactor"] = sf
+
+                        sf_list1 = list(set(df_rego.scalefactor))
+                        #print(f"  Unique scale factors: {sf_list1}")
+                        alpha_arr, chi2_arr = search_regolith_abundance(
+                            df_rego, df_rock, alpha_list, chi2_min0, False)
+                        # Save info.
+                        for a, c in zip(alpha_arr, chi2_arr):
+                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf}")
+                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
 
     df.to_csv(args.out, sep=" ", index=False)
