@@ -138,6 +138,12 @@ if __name__ == "__main__":
 
     axin = ax.inset_axes([0.60, 0.50, 0.35, 0.35])
 
+    # For scale factors
+    if scale_per_obs:
+        axsf = fig.add_axes([0.83, 0.13, 0.10, 0.15])
+        axsf.set_xlabel("Scale factor")
+        axsf.set_ylabel("N")
+
     if args.logx:
         ax.set_xscale("log")
     if args.logy:
@@ -241,6 +247,8 @@ if __name__ == "__main__":
 
     # Calculate chi2 with scale factors per observation =======================
     elif scale_per_obs:
+        # Array to save unique scale factors
+        sf_list = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
@@ -273,6 +281,18 @@ if __name__ == "__main__":
                 chi2_new_list.append(chi2)
                 TI_new_list.append(TI)
                 Htheta_new_list.append(Htheta)
+
+                # Extract unique scale factors
+                # Group by time (epoch)
+                for t, df_t in df_temp.groupby("jd"):
+                    if len(df_t) == 1:
+                        continue
+
+                    df_t = df_t.copy()
+                    sf0 = np.min(df_t.scalefactor)
+                    sf1 = np.max(df_t.scalefactor)
+                    assert sf0 == sf1, "Something wrong in the calculation of scale factors."
+                    sf_list.append(sf0)
 
         # Add global minimum chi2
         chi2_min = np.min(chi2_new_list)
@@ -342,7 +362,10 @@ if __name__ == "__main__":
     chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_3sigma)*1.2
     axin.set_xlim([val_0, val_1])
     axin.set_ylim([chi2_0, chi2_1])
-    
+
+    # Histogram of scale factors
+    if scale_per_obs:
+        axsf.hist(sf_list)
 
     # This adjustment is necessary when logy == True
     _, y1 = ax.get_ylim()
