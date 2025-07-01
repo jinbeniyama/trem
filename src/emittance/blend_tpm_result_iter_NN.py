@@ -243,10 +243,8 @@ if __name__ == "__main__":
         # Note: This scale factor is applied for both spec. and phot.
         column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
     elif scale_per_obs:
-        # Note: This scale factor is only applied for spectroscopy.
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
+        pass
 
-    df = pd.DataFrame(columns=column)
 
     # Loop for Htheta (i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
@@ -313,7 +311,7 @@ if __name__ == "__main__":
 
                     # TODO: As free parameters
                     sf0, sf1, sfstep = 0.90, 1.10, 0.01
-                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+                    sf_list = np.arange(sf0, sf1, sfstep)
 
                     key_t = "jd"
                     t_unique_list, dfs_phot = extract_unique_epoch(df_rego, key_t)
@@ -321,11 +319,12 @@ if __name__ == "__main__":
                     df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
                     # Test
-                    #alpha_list = [0]
+                    alpha_list = [0]
 
                     # Search best scale parameters for each alpha
                     for al in alpha_list:
 
+                        sf_epoch_list = []
                         for epoch in t_unique_list: 
                             df_rego_epoch = df_rego[df_rego["jd"] == epoch]
                             df_rock_epoch = df_rock[df_rock["jd"] == epoch]
@@ -360,7 +359,8 @@ if __name__ == "__main__":
                             df_rego.loc[df_rego["jd"]==epoch, "scalefactor"] = sf_epoch
                             df_rock.loc[df_rock["jd"]==epoch, "scalefactor"] = sf_epoch
 
-                        # Check scale parameters
+                            sf_epoch_list.append(sf_epoch)
+
                         f1 = df_rego["f_model"].to_numpy()
                         sf_per_obs = df_rego["scalefactor"].to_numpy()
                         f2 = df_rock["f_model"].to_numpy()
@@ -373,12 +373,16 @@ if __name__ == "__main__":
                         chi2 = np.sum(diff)
 
                         # Save info.
-                        # TODO: Save scale parameters for each epoch
-                        rows = [[Htheta, TIrego, TIrock, al, chi2, 999]]
+                        # sf_epoch_list: best scale parameters for each epoch
+                        rows = [[Htheta, TIrego, TIrock, al, chi2] + sf_epoch_list]
                         rows_all.extend(rows)
+    if scale_per_obs:
+        # Save all scale factors.
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+        for idx, epoch in enumerate(t_unique_list): 
+            column.append(f"scalefactor{idx+1}")
 
-    # Concat
-    df = pd.concat([df, pd.DataFrame(rows_all, columns=df.columns)], ignore_index=True)
+    df = pd.DataFrame(rows_all, columns=column)
 
     df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
     t1 = time.time() 
