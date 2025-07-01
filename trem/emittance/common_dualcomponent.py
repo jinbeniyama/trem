@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Common functions for dual-component TPM.
 """
-from trem.emittance.common_emittance import calc_chi2
+from trem.emittance.common_emittance import calc_chi2, calc_chi2_numpy
 
 
 def blend_flux(df1, df2, alpha):
@@ -40,6 +40,15 @@ def blend_flux(df1, df2, alpha):
     return df_blend
 
 
+def blend_flux_numpy(f1, s1, f2, s2, alpha):
+    """
+    Blend fluxes if df1 and df2 with alpha.
+      F_blended = alpha*F1*s1^2 + (1 - alpha)*F2*s2^2,
+    where s1 and s2 are scale factors.
+    """
+    return alpha * (s1**2) * f1 + (1 - alpha) * (s2**2) * f2
+
+
 def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=False):
     """
     Search regolith abundance alpha which minimize chi2.
@@ -68,13 +77,29 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
     """
     alpha_arr, chi2_arr = [], []
     
+    f1 = df1["f_model"].to_numpy()
+    s1 = df1["scalefactor"].to_numpy()
+    f2 = df2["f_model"].to_numpy()
+    s2 = df2["scalefactor"].to_numpy()
+    f_obs = df1["f_obs"].to_numpy()
+    ferr_obs = df1["ferr_obs"].to_numpy()
+
     for a in alpha_list:
         # Blend flux as 
         #   F = alpha*F_regolith*s1^2 + (1-alpha)*F_rock*s2^2,
         # where s1 and s2 are scale factors.
-        df_blend = blend_flux(df1, df2, a)
+        ## This is slow
+        #df_blend = blend_flux(df1, df2, a)
+
+        ## This is faster
+        f_blend = blend_flux_numpy(f1, s1, f2, s2, a)
+
         # Calculate chi2 of blended flux
-        chi2 = calc_chi2(df_blend)
+        ## This is slow
+        #chi2 = calc_chi2(df_blend)
+        ## This is faster
+        ## Set global scale factor to 1 (scale factors are alraeady introduced!)
+        chi2 = calc_chi2_numpy(f_obs, f_blend, ferr_obs, 1)
 
         if minonly:
             if chi2 < chi2_min:
