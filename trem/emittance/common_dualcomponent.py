@@ -28,59 +28,6 @@ def blend_flux(df1, df2, alpha):
     # Sanity check
     assert len(df1) == len(df2), "Check if input dfs are the same dimension!"
     
-    # 1. This is safe but slow, because of the for loop. ======================
-    # Number of data points
-    #N_data = len(df1)
-    #epoch_list, jd_list, w_list = [], [], []
-    #f_obs_list, ferr_obs_list, f_model_list = [], [], []
-    #
-    #for n in range(N_data):
-    #    epoch1    = df1.loc[n, "epoch"]
-    #    jd1       = df1.loc[n, "jd"]
-    #    w1        = df1.loc[n, "w"]
-    #    f_obs1    = df1.loc[n, "f_obs"]
-    #    ferr_obs1 = df1.loc[n, "ferr_obs"]
-    #    f_model1  = df1.loc[n, "f_model"]
-    #    s1        = df1.loc[n, "scalefactor"]
-
-    #    epoch2    = df2.loc[n, "epoch"]
-    #    jd2       = df2.loc[n, "jd"]
-    #    w2        = df2.loc[n, "w"]
-    #    f_obs2    = df2.loc[n, "f_obs"]
-    #    ferr_obs2 = df2.loc[n, "ferr_obs"]
-    #    f_model2  = df2.loc[n, "f_model"]
-    #    s2        = df2.loc[n, "scalefactor"]
-
-    #    # Sanity checks
-    #    assert jd1 == jd2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert w1 == w2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert f_obs1 == f_obs2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert ferr_obs1 == ferr_obs2, "Check if input dfs are made from the TPMs with same obs file."
-
-    #    # Calculate blended flux
-    #    f_blend = alpha*s1**2*f_model1 + (1 - alpha)*s2**2*f_model2
-
-    #    # Save info.
-    #    epoch_list.append(epoch1)
-    #    jd_list.append(epoch1)
-    #    w_list.append(w1)
-    #    f_obs_list.append(f_obs1)
-    #    ferr_obs_list.append(ferr_obs1)
-    #    f_model_list.append(f_blend)
-    #    
-    ## DataFrame
-    #df_blend = pd.DataFrame({
-    #    "epoch": epoch_list, 
-    #    "jd": jd_list, 
-    #    "w": w_list,
-    #    "f_obs": f_obs_list, 
-    #    "ferr_obs": ferr_obs_list, 
-    #    "f_model": f_model_list, 
-    #    })
-    ## This is a dummy
-    #df_blend["scalefactor"] = 1
-    # 1. This is safe but slow, because of the for loop. ======================
-
     # 2. This is faster =======================================================
     df_blend = df1.copy()
     df_blend["f_model"] = (
