@@ -345,7 +345,7 @@ if __name__ == "__main__":
     # Concat
     df = pd.concat([df, pd.DataFrame(rows_all, columns=df.columns)], ignore_index=True)
 
-    df.to_csv(args.out, sep=" ", index=False)
+    df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
     t1 = time.time() 
     elapsed_time = t1 - t0
     print(f"  Elapsed time：{elapsed_time:.2f}")
