@@ -316,15 +316,14 @@ if __name__ == "__main__":
                     # TODO: As free parameters
                     sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
-                    sf_list = [1.0]
-                    alpha_list = [0]
+                    #sf_list = [1.0]
+                    #alpha_list = [0]
 
                     key_t = "jd"
                     t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
                     df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
                     df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
-                    rows_all = []
                     for sf in sf_list:
                         # Introduce scale factors only for photometry
                         df_rego.loc[df_rego["jd"].isin(t_unique_list), "scalefactor"] = sf
