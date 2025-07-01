@@ -250,7 +250,8 @@ if __name__ == "__main__":
 
     # Loop for Htheta (i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
-
+    
+    rows_all = []
     for idx_Htheta, Htheta, in enumerate(Htheta_list):
         print(f"  Htheta = {Htheta:.2f}")
 
@@ -323,6 +324,7 @@ if __name__ == "__main__":
                     df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
                     df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
+                    rows_all = []
                     for sf in sf_list:
                         # Introduce scale factors only for photometry
                         df_rego.loc[df_rego["jd"].isin(t_unique_list), "scalefactor"] = sf
@@ -340,7 +342,9 @@ if __name__ == "__main__":
                             [Htheta, TIrego, TIrock, a, c, sf]
                             for a, c in zip(alpha_arr, chi2_arr)
                         ]
-                        df = pd.concat([df, pd.DataFrame(rows, columns=df.columns)], ignore_index=True)
+                        rows_all.extend(rows)
+    # Concat
+    df = pd.concat([df, pd.DataFrame(rows_all, columns=df.columns)], ignore_index=True)
 
     df.to_csv(args.out, sep=" ", index=False)
     t1 = time.time() 
