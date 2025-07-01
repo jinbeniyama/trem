@@ -290,6 +290,8 @@ if __name__ == "__main__":
 
                     key_t = "jd"
                     t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
+                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
                     for sf in sf_list:
                         # Introduce scale factors for both spec. and phot.
@@ -301,9 +303,11 @@ if __name__ == "__main__":
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, False)
                         # Save info.
-                        for a, c in zip(alpha_arr, chi2_arr):
-                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf:.3f}")
-                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+                        rows = [
+                            [Htheta, TIrego, TIrock, a, c, sf]
+                            for a, c in zip(alpha_arr, chi2_arr)
+                        ]
+                        rows_all.extend(rows)
 
                 # w/ scale factors for spectra (not for photometry)
                 elif scale_per_obs:
