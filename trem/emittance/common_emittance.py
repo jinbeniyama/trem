@@ -280,6 +280,25 @@ def calc_chi2(df):
     return chi2
 
 
+def calc_chi2_numpy(f_obs, f_model, ferr, scalefactor):
+    """
+    Calculate chi2 with F_obs, Ferr_obs, F_model, and scale factor.
+    Note: 
+    The output chi2 could be different from that in the output of TPM.
+    This is because runtpm ignores negative fluxes. J.B. thinks negative 
+    fluxes are still informative if they are with large errorbars.
+
+    Return
+    ------
+    chi2 : float
+        calculated chi-square
+    """
+    model_scaled = scalefactor**2 * f_model
+    diff = (f_obs - model_scaled)**2 / ferr**2
+    chi2 = np.sum(diff)
+    return chi2
+
+
 def calc_confidence_chi2(paper, chi2_min, dof, n, reduce):
     """
     Calculate condifence levels.
@@ -361,7 +380,7 @@ def extract_unique_epoch(df, key_t):
     """
 
     # Extract observation time and N
-    t_list = list(set(df[key_t]))
+    t_list = sorted(list(set(df[key_t])))
     # Time in which scale factor to be introduced
     # When N == 1 (i.e., photometry), no scale factor is introduced.
     t_unique_list = []
