@@ -280,7 +280,7 @@ if __name__ == "__main__":
                     #       Results are already fit by the scale factors.
 
                     # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
 
                     key_t = "jd"
@@ -311,7 +311,7 @@ if __name__ == "__main__":
                     #       Results are already fit by the scale factors.
 
                     # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
 
                     #N_epoch_rego = len(list(set(df_rego["jd"])))
