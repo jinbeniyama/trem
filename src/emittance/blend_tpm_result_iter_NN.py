@@ -18,6 +18,7 @@ bond albedo, A, is always fixed?? For Eros, yes.
 """
 import os 
 import sys
+import time
 from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
@@ -74,6 +75,8 @@ if __name__ == "__main__":
         help="Directory for output file")
     args = parser.parse_args()
    
+    t0 = time.time() 
+
     # Parse arguments =========================================================
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
@@ -242,6 +245,7 @@ if __name__ == "__main__":
     elif scale_per_obs:
         # Note: This scale factor is only applied for spectroscopy.
         column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
+
     df = pd.DataFrame(columns=column)
 
     # Loop for Htheta (i.e., roughness)
@@ -302,8 +306,6 @@ if __name__ == "__main__":
 
                 # w/ scale factors for spectra (not for photometry)
                 elif scale_per_obs:
-
-                    assert False, "in prep."
                     # Combine two dataframe and return only alpha which gives
                     # the minimum chi2
                     # Note: Results are already fit by alpha
@@ -313,14 +315,13 @@ if __name__ == "__main__":
                     # TODO: As free parameters
                     sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+                    sf_list = [1.0]
+                    alpha_list = [0]
 
-                    #N_epoch_rego = len(list(set(df_rego["jd"])))
-                    #N_epoch_rock = len(list(set(df_rock["jd"])))
-                    #print(f"N_epoch in df_rego: {N_epoch_rego}")
-                   # print(f"N_epoch in df_rock: {N_epoch_rock}")
-                    # Either is fine (df_rego or df_rock)
                     key_t = "jd"
                     t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
+                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
                     for sf in sf_list:
                         # Introduce scale factors only for photometry
@@ -328,12 +329,20 @@ if __name__ == "__main__":
                         df_rock.loc[df_rock["jd"].isin(t_unique_list), "scalefactor"] = sf
 
                         sf_list1 = list(set(df_rego.scalefactor))
+                        # sf and 1 (for photometry)
                         #print(f"  Unique scale factors: {sf_list1}")
+
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, False)
+
                         # Save info.
-                        for a, c in zip(alpha_arr, chi2_arr):
-                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf}")
-                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+                        rows = [
+                            [Htheta, TIrego, TIrock, a, c, sf]
+                            for a, c in zip(alpha_arr, chi2_arr)
+                        ]
+                        df = pd.concat([df, pd.DataFrame(rows, columns=df.columns)], ignore_index=True)
 
     df.to_csv(args.out, sep=" ", index=False)
+    t1 = time.time() 
+    elapsed_time = t1 - t0
+    print(f"  Elapsed time：{elapsed_time:.2f}")
