@@ -26,7 +26,7 @@ import pandas as pd
 from trem.emittance.common_emittance import (
     extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor,
     extract_unique_epoch)
-from trem.emittance.common_dualcomponent import search_regolith_abundance
+from trem.emittance.common_dualcomponent import search_regolith_abundance, blend_flux_numpy
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
 
@@ -278,11 +278,7 @@ if __name__ == "__main__":
 
                 # w/ global scale factors
                 elif scale_all:
-                    # Combine two dataframe and return only alpha which gives
-                    # the minimum chi2
-                    # Note: Results are already fit by alpha
-                    # Note: Scale factors are introduced.
-                    #       Results are already fit by the scale factors.
+                    # Combine two dataframe and return chi-squared values 
 
                     # TODO: As free parameters
                     sf0, sf1, sfstep = 0.90, 1.10, 0.01
@@ -311,41 +307,76 @@ if __name__ == "__main__":
 
                 # w/ scale factors for spectra (not for photometry)
                 elif scale_per_obs:
-                    # Combine two dataframe and return only alpha which gives
-                    # the minimum chi2
-                    # Note: Results are already fit by alpha
+                    # Combine two dataframe and return chi-squared values 
                     # Note: Scale factors are introduced.
-                    #       Results are already fit by the scale factors.
+                    #       Results are already fit by the scale factors per obs.
 
                     # TODO: As free parameters
                     sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
-                    #sf_list = [1.0]
-                    #alpha_list = [0]
 
                     key_t = "jd"
-                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+                    t_unique_list, dfs_phot = extract_unique_epoch(df_rego, key_t)
                     df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
                     df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
-                    for sf in sf_list:
-                        # Introduce scale factors only for photometry
-                        df_rego.loc[df_rego["jd"].isin(t_unique_list), "scalefactor"] = sf
-                        df_rock.loc[df_rock["jd"].isin(t_unique_list), "scalefactor"] = sf
+                    # Test
+                    #alpha_list = [0]
 
-                        sf_list1 = list(set(df_rego.scalefactor))
-                        # sf and 1 (for photometry)
-                        #print(f"  Unique scale factors: {sf_list1}")
+                    # Search best scale parameters for each alpha
+                    for al in alpha_list:
 
-                        alpha_arr, chi2_arr = search_regolith_abundance(
-                            df_rego, df_rock, alpha_list, chi2_min0, False)
+                        for epoch in t_unique_list: 
+                            df_rego_epoch = df_rego[df_rego["jd"] == epoch]
+                            df_rock_epoch = df_rock[df_rock["jd"] == epoch]
+                            
+                            # Fit scale factor here
+                            for idx_sf, sf in enumerate(sf_list):
+                                # Introduce scale factors only for photometry
+                                df_rego_epoch.loc[:, "scalefactor"] = sf
+                                df_rock_epoch.loc[:, "scalefactor"] = sf
+
+                                f1 = df_rego_epoch["f_model"].to_numpy()
+                                f2 = df_rock_epoch["f_model"].to_numpy()
+                                f_obs = df_rego_epoch["f_obs"].to_numpy()
+                                ferr_obs = df_rego_epoch["ferr_obs"].to_numpy()
+
+                                # Blended model flux for a combination of 
+                                # (epoch, scale factor, alpha)
+                                f_blend = blend_flux_numpy(f1, sf, f2, sf, al)
+
+                                # Calculate chi2 of blended flux
+                                diff = (f_obs - f_blend)**2 / ferr_obs**2
+                                chi2 = np.sum(diff)
+                                if idx_sf == 0:
+                                    chi2_min_epoch_sf = chi2
+                                    sf_epoch = sf
+                                else:
+                                    if chi2 < chi2_min_epoch_sf:
+                                        chi2_min_epoch_sf = chi2
+                                        sf_epoch = sf
+                            #print(f"Best sf at {epoch} with alpha of {al}: {sf_epoch}")
+                            # Update scale factors
+                            df_rego.loc[df_rego["jd"]==epoch, "scalefactor"] = sf_epoch
+                            df_rock.loc[df_rock["jd"]==epoch, "scalefactor"] = sf_epoch
+
+                        # Check scale parameters
+                        f1 = df_rego["f_model"].to_numpy()
+                        sf_per_obs = df_rego["scalefactor"].to_numpy()
+                        f2 = df_rock["f_model"].to_numpy()
+                        f_obs = df_rock["f_obs"].to_numpy()
+                        ferr_obs = df_rock["ferr_obs"].to_numpy()
+                        f_blend = blend_flux_numpy(f1, sf_per_obs, f2, sf_per_obs, al)
+
+                        # Calculate chi2 of blended flux
+                        diff = (f_obs - f_blend)**2 / ferr_obs**2
+                        chi2 = np.sum(diff)
 
                         # Save info.
-                        rows = [
-                            [Htheta, TIrego, TIrock, a, c, sf]
-                            for a, c in zip(alpha_arr, chi2_arr)
-                        ]
+                        # TODO: Save scale parameters for each epoch
+                        rows = [[Htheta, TIrego, TIrock, al, chi2, 999]]
                         rows_all.extend(rows)
+
     # Concat
     df = pd.concat([df, pd.DataFrame(rows_all, columns=df.columns)], ignore_index=True)
 
