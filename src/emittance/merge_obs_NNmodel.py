@@ -148,6 +148,7 @@ if __name__ == "__main__":
 
     
     # Read NN predictions
+    print("NN prediction")
     ## directory where the files are located
     ## Check this directory carefully!
     f_list = os.listdir(args.NNdir)
@@ -159,12 +160,13 @@ if __name__ == "__main__":
     
     ## Check unique epochs and wavelengths
     epoch_NN_unique, w_NN_unique = check_epoch_wavelength(df_NN)
-    print("NN prediction")
-    print(f"  N={len(epoch_NN_unique)} {epoch_NN_unique}")
-    print(f"  N={len(w_NN_unique)} {w_NN_unique}")
+    print(f"  N_epoch = {len(epoch_NN_unique)} {epoch_NN_unique}")
+    print(f"  N_wave  = {len(w_NN_unique)}")
     print("")
     
+
     # Read observations
+    print("Observations")
     ## read a result of TPM
     df_obs = read_obs(args.f_obs)
     ## Remove useless epochs here
@@ -178,9 +180,8 @@ if __name__ == "__main__":
     
     ## Check epoch and wavelength
     epoch_obs_unique, w_obs_unique = check_epoch_wavelength(df_obs)
-    print("Observations")
-    print(f"N={len(epoch_obs_unique)} {epoch_obs_unique}")
-    print(f"N={len(w_obs_unique)} {w_obs_unique}")
+    print(f"N_epoch = {len(epoch_obs_unique)} {epoch_obs_unique}")
+    print(f"N_wave  = {len(w_obs_unique)}")
     print("")
     
     # Check if the columns are identical
