@@ -274,6 +274,13 @@ if __name__ == "__main__":
                     alpha_arr, chi2_arr = search_regolith_abundance(
                         df_rego, df_rock, alpha_list, chi2_min0, False)
 
+                    # Save info.
+                    rows = [
+                        [Htheta, TIrego, TIrock, a, c]
+                        for a, c in zip(alpha_arr, chi2_arr)
+                    ]
+                    rows_all.extend(rows)
+
                 # w/ global scale factors
                 elif scale_all:
                     # Combine two dataframe and return chi-squared values 
@@ -317,9 +324,6 @@ if __name__ == "__main__":
                     t_unique_list, dfs_phot = extract_unique_epoch(df_rego, key_t)
                     df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
                     df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
-
-                    # Test
-                    alpha_list = [0]
 
                     # Search best scale parameters for each alpha
                     for al in alpha_list:
