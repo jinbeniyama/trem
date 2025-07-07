@@ -442,7 +442,7 @@ def introduce_global_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01)
     return df
 
 # Probably useless. To be removed.
-def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
+def introduce_var_scalefactor(df, key_t="jd", sf0=0.90, sf1=1.1, sfstep=0.01):
     """
     Introduce variable scale factors per observation.
 
