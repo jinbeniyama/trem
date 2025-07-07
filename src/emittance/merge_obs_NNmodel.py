@@ -139,6 +139,9 @@ if __name__ == "__main__":
         "f_obs", type=str,
         help="Example of TPM result (to extract observations)")
     parser.add_argument(
+        "--notuse", type=float, nargs="*", default=None,
+        help="Epoch not used")
+    parser.add_argument(
         "--out", type=str, default="NN_TPMres.txt.txt",
         help="output file name")
     args = parser.parse_args()
@@ -148,8 +151,6 @@ if __name__ == "__main__":
     ## directory where the files are located
     ## Check this directory carefully!
     f_list = os.listdir(args.NNdir)
-    Nepoch = len(f_list)
-    print(f"  Number of epochs: {Nepoch}")
     ## Add directory
     f_list = [f"{args.NNdir}/{x}" for x in f_list]
     
@@ -158,17 +159,29 @@ if __name__ == "__main__":
     
     ## Check unique epochs and wavelengths
     epoch_NN_unique, w_NN_unique = check_epoch_wavelength(df_NN)
+    print("NN prediction")
     print(f"  N={len(epoch_NN_unique)} {epoch_NN_unique}")
     print(f"  N={len(w_NN_unique)} {w_NN_unique}")
+    print("")
     
     # Read observations
     ## read a result of TPM
     df_obs = read_obs(args.f_obs)
+    ## Remove useless epochs here
+    if args.notuse:
+        for epoch_notuse in args.notuse:
+            N0 = len(set(df_obs["jd"]))
+            df_obs = df_obs[df_obs["jd"] != epoch_notuse]
+            N1 = len(set(df_obs["jd"]))
+            if N1-N0 != 0:
+                print(f"Epoch {epoch_notuse} is removed from df_obs.")
     
     ## Check epoch and wavelength
     epoch_obs_unique, w_obs_unique = check_epoch_wavelength(df_obs)
+    print("Observations")
     print(f"N={len(epoch_obs_unique)} {epoch_obs_unique}")
     print(f"N={len(w_obs_unique)} {w_obs_unique}")
+    print("")
     
     # Check if the columns are identical
     # This should be empty
