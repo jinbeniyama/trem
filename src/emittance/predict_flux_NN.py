@@ -76,17 +76,17 @@ if __name__ == "__main__":
 
     # TODO: Add these as optional arguments.
 
-    # N = 100 x 60 = 6000
-    # N_TI = 100
-    TI_list = np.logspace(0,np.log10(2500),100)
-    # N_theta = 60
-    theta_list = np.linspace(0,60,60)
-
     # N = 30 x 20 = 600
     # N_TI = 30
     TI_list = np.logspace(0,np.log10(2500),30)
     # N_theta = 20
     theta_list = np.linspace(0,60,20)
+    
+    # N = 500 x 61 = 30500
+    # TI = 500
+    TI_list = np.arange(5, 2505, 5)
+    # N_theta = 61
+    theta_list = np.arange(0, 61, 1)
     
     for i in range(len(epoch_unique_array)):
     
