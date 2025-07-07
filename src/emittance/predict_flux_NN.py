@@ -126,7 +126,7 @@ if __name__ == "__main__":
             f_model,
         ], axis=0)
 
-        outdir = "NNprediction"
+        outdir = args.outdir
         # Save as "LUT_2450991.767627034.npy"
         f_out = f"LUT_{epoch_unique_array[i]}.npy"
         out = os.path.join(outdir, f_out)
