@@ -59,6 +59,9 @@ if __name__ == "__main__":
         "modeldir", type=str,
         help="Directory with NN model")
     parser.add_argument(
+        "--notuse", type=float, nargs="*", default=None,
+        help="Epoch not used")
+    parser.add_argument(
         "--outdir", type=str, default="NNprediction",
         help="output file name")
     args = parser.parse_args()
@@ -69,6 +72,21 @@ if __name__ == "__main__":
 
     TPM_sims = np.loadtxt(args.lut, delimiter = ',')
     epoch_unique_array = np.unique(TPM_sims[:,5])
+
+    print(f"Unique epochs: N={len(epoch_unique_array)}")
+
+    # Remove useless epochs here
+    if args.notuse:
+        for epoch_notuse in args.notuse:
+            N0 = len(epoch_unique_array) 
+            epoch_unique_array = [x for x in epoch_unique_array if x != epoch_notuse]
+            N1 = len(epoch_unique_array) 
+            if N1-N0 != 0:
+                print(f"Epoch {epoch_notuse} is removed.")
+
+        print(f"  Updated unique epochs: N={len(epoch_unique_array)}")
+
+
     
     # These are just to extract wavelength
     TI0 = 50
