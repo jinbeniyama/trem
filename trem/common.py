@@ -37,6 +37,7 @@ The default value is None for all queries, which corresponds to
            J.B. confirmed that the generated obs file with light time correction
            matched that in DAFEED with an accuracy of 0.01 s.
 """
+import time
 import numpy as np
 from astroquery.jplhorizons import Horizons
 from astropy.constants import c, au
