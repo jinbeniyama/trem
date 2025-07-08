@@ -255,3 +255,15 @@ def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):
                 f_obs.write(f" {w} {flux} {fluxerr} {cflag}\n")
 
             f_obs.write("\n")
+
+def elapsedtime(t0):
+    """Output elapsed time.
+    
+    Parameter
+    ---------
+    t0 : float
+        Time zero
+    """
+    t1 = time.time() 
+    elapsed_time = t1 - t0
+    print(f"  Elapsed time：{elapsed_time:.2f} s")
