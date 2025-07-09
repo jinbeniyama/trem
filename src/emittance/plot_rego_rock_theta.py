@@ -110,7 +110,7 @@ if __name__ == "__main__":
         "--TIth", type=float, default=1,
         help="Threshold of thermal inertia")
     parser.add_argument(
-        "--vr", type=float, nargs=2, default=None,
+        "--vr", type=float, nargs=2, default=[0, 100],
         help="Value range")
     parser.add_argument(
         "--out", type=str, default="TIrego_TIrock_Htheta.png",
