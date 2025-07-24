@@ -204,6 +204,16 @@ if __name__ == "__main__":
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
+
+        # Save chi2, TI, and Htheta ===========================================
+        if args.out_df:
+            df_out = pd.DataFrame({
+                "chi2": chi2_new_list,
+                "TI": TI_new_list,
+                "Htheta": Htheta_new_list,
+                })
+            out_df = os.path.join(args.outdir, args.out_df)
+            df_out.to_csv(out_df, sep=" ")
     # Calculate chi2 fixing scale factor to 1 =================================
 
 
@@ -303,19 +313,25 @@ if __name__ == "__main__":
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
+
+        # Save chi2, TI, Htheta, and scale factors ============================
+        if args.out_df:
+            df_out = pd.DataFrame({
+                "chi2": chi2_new_list,
+                "TI": TI_new_list,
+                "Htheta": Htheta_new_list,
+                })
+            # Add scale factors
+            N_sf = len(sf_list[0])
+            sf_transposed = list(zip(*sf_list))
+            # Add scale factors
+            for n, sf_values in enumerate(sf_transposed):
+                df_out[f"sf{n+1}"] = sf_values
+            out_df = os.path.join(args.outdir, args.out_df)
+            df_out.to_csv(out_df, sep=" ")
     # Calculate chi2 with scale factors per observation =======================
 
 
-    # Save chi2, TI, and Htheta ===============================================
-    if args.out_df:
-        df_out = pd.DataFrame({
-            "chi2": chi2_new_list,
-            "TI": TI_new_list,
-            "Htheta": Htheta_new_list,
-            })
-        out_df = os.path.join(args.outdir, args.out_df)
-        df_out.to_csv(out_df, sep=" ")
-    # Save chi2, TI, and Htheta ===============================================
     
 
     # Add 1-sigma, 3-sigma ====================================================
