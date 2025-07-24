@@ -262,6 +262,7 @@ if __name__ == "__main__":
     # Calculate chi2 with scale factors per observation =======================
     elif scale_per_obs:
         # Array to save unique scale factors
+        # scale factors are saved as [[sf1, sf2, ..., sf10], [sf1, sf2, ..., sf10]]
         sf_list = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
@@ -298,6 +299,8 @@ if __name__ == "__main__":
 
                 # Extract unique scale factors
                 # Group by time (epoch)
+                # List to save scale factors for a specific TI and Htheta
+                sf_list_TI_Htheta = []
                 for t, df_t in df_temp.groupby("jd"):
                     if len(df_t) == 1:
                         continue
@@ -306,7 +309,8 @@ if __name__ == "__main__":
                     sf0 = np.min(df_t.scalefactor)
                     sf1 = np.max(df_t.scalefactor)
                     assert sf0 == sf1, "Something wrong in the calculation of scale factors."
-                    sf_list.append(sf0)
+                    sf_list_TI_Htheta.append(sf0)
+                sf_list.append(sf_list_TI_Htheta)
 
         # Add global minimum chi2
         chi2_min = np.min(chi2_new_list)
