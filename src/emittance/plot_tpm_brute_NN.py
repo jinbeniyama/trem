@@ -115,6 +115,10 @@ if __name__ == "__main__":
         ]
     # Number of data points
     N_data = len(df_temp)
+
+    # Number of epochs
+    jd_list = sorted(list(set(df_temp["jd"])))
+    print(f"Epoch list N={len(jd_list)}:{jd_list}")
      
 
     # Calculate dof ===========================================================
