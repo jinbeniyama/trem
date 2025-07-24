@@ -23,6 +23,7 @@ from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
 
+from trem.common import elapsedtime
 from trem.emittance.common_emittance import (
     extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor,
     extract_unique_epoch)
@@ -179,6 +180,7 @@ if __name__ == "__main__":
             # Loop for Htheta (i.e., roughness)
             for idx_Htheta, Htheta, in enumerate(Htheta_list):
                 print(f"  Htheta = {Htheta:.2f}")
+                elapsedtime(t0)
                 # Loop for TI of regolith
                 for idx_TIrego, TIrego in enumerate(TIrego_list):
                     # Extract fluxes of regolith
@@ -252,6 +254,7 @@ if __name__ == "__main__":
     rows_all = []
     for idx_Htheta, Htheta, in enumerate(Htheta_list):
         print(f"  Htheta = {Htheta:.2f}")
+        elapsedtime(t0)
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
@@ -389,6 +392,4 @@ if __name__ == "__main__":
     df = pd.DataFrame(rows_all, columns=column)
 
     df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
-    t1 = time.time() 
-    elapsed_time = t1 - t0
-    print(f"  Elapsed time：{elapsed_time:.2f}")
+    elapsedtime(t0)
