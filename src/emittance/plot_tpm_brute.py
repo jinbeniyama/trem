@@ -304,21 +304,37 @@ if __name__ == "__main__":
             "CR": CR_list, 
             "chi2": chi2_list}
             )
-        # Parameter about roughness is characterized by
-        # CA, not CR (i.e., duplicated CRs are used.)
-        CAs = df.CA.unique()
 
-        for idx, CA in enumerate(CAs):
-            df_temp = df[df["CA"] == CA]
-            assert len(df_temp["CA"].unique()) == 1
-            assert len(df_temp["CR"].unique()) == 1
-            ca, cr = np.min(df_temp["CA"]), np.min(df_temp["CR"])
-            col, mark = mycolor[idx], mymark[idx]
-            label = f"Roughness params.\n  (CA, CR) = ({ca}, {cr})"
-            for a in [ax, axin]:
-                a.scatter(
-                    df_temp[val], df_temp["chi2"], color=col, marker=mark, s=50, 
-                    facecolor="None", label=label)
+        try:
+            # Parameter about roughness is characterized by
+            # CA, not CR (i.e., duplicated CRs are used.)
+            CAs = df.CA.unique()
+            for idx, CA in enumerate(CAs):
+                df_temp = df[df["CA"] == CA]
+                assert len(df_temp["CA"].unique()) == 1
+                assert len(df_temp["CR"].unique()) == 1
+                ca, cr = np.min(df_temp["CA"]), np.min(df_temp["CR"])
+                col, mark = mycolor[idx], mymark[idx]
+                label = f"Roughness params.\n  (CA, CR) = ({ca}, {cr})"
+                for a in [ax, axin]:
+                    a.scatter(
+                        df_temp[val], df_temp["chi2"], color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
+        except:
+            # Parameter about roughness is characterized by
+            # CR.
+            CRs = df.CR.unique()
+            for idx, CR in enumerate(CRs):
+                df_temp = df[df["CR"] == CR]
+                assert len(df_temp["CA"].unique()) == 1
+                assert len(df_temp["CR"].unique()) == 1
+                ca, cr = np.min(df_temp["CA"]), np.min(df_temp["CR"])
+                col, mark = mycolor[idx], mymark[idx]
+                label = f"Roughness params.\n  (CA, CR) = ({ca}, {cr})"
+                for a in [ax, axin]:
+                    a.scatter(
+                        df_temp[val], df_temp["chi2"], color=col, marker=mark, s=50, 
+                        facecolor="None", label=label)
 
         # Add global minimum chi2
         chi2_min = np.min(df["chi2"])
