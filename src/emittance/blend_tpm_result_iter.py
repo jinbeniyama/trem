@@ -165,17 +165,25 @@ if __name__ == "__main__":
     # This is also needed to identify filenames below
     CA_list = list(set(CA_list))
     N_CA  = len(CA_list)
+    CR_list = sorted(list(set(CR_list)))
+    N_CR  = len(CR_list)
 
     # Sort carefully......  !!!
     # Ascending order of Htheta and CA is not necessarily the same. 
     # (see, e.g., Hung+2022)
     CA_list = sorted(CA_list)
-    Htheta_list = [crater2Htheta(ca, 999) for ca in CA_list]
+     
+    # TODO: Update
+    # This is not always the case.
+    #Htheta_list = [crater2Htheta(ca, 999) for ca in CA_list]
+
+    RMS_list = [49*np.sqrt(cr) for cr in CR_list]
+    N_RMS = len(RMS_list)
 
     print(f"Input N_all      = {N_all}")
     print(f"      N_TI       = {N_TI}")
     print(f"      N_A        = {N_A}")
-    print(f"      N_Htheta   = {N_Htheta}")
+    print(f"      N_RMS   = {N_RMS}")
     print("")
 
 
@@ -221,22 +229,25 @@ if __name__ == "__main__":
 
  
         # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =========
-        N_comb = int(N_Htheta*N_TIrego*N_TIrock)
+        N_comb = int(N_RMS*N_TIrego*N_TIrock)
         idx_all = 1
         # Get all filenames
         resall = os.listdir(resdir)
         
         # Make DataFrame to register chi2
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+        column = ["RMS", "TIrego", "TIrock", "alpha", "chi2"]
         df = pd.DataFrame(columns=column)
 
-        # Loop for Htheta (or CA, i.e., roughness)
-        for idx_Htheta, (Htheta, CA) in enumerate(zip(Htheta_list, CA_list)):
+        # Loop for RMS (i.e., roughness)
+        for idx_Htheta, (Htheta, rms) in enumerate(zip(Htheta_list, RMS_list)):
             # To extract two files
             # ex) tpmout_433_brute_A0.12_ti950_ca50_cr0.5.dat
             #  ->     *_ti{TIrego}_ca{CA}_*
             #     and *_ti{TIrock}_ca{CA}_*
-            ca_str = f"_ca{int(CA)}_"
+            #ca_str = f"_ca{int(CA)}_"
+
+            # Assume CA is always 90 deg
+            ca_str = f"_ca90_"
 
             # Loop for TI of regolith
             for idx_TIrego, TIrego in enumerate(TIrego_list):
@@ -266,7 +277,7 @@ if __name__ == "__main__":
                     for a, c in zip(alpha_arr, chi2_arr):
                         # For test
                         #print(f"  -> alpha, chi2 = {a:.2f}, {c:.2f}")
-                        df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c]
+                        df.loc[len(df)] = [rms, TIrego, TIrock, a, c]
 
                     # Update index
                     idx_all += 1
@@ -302,16 +313,21 @@ if __name__ == "__main__":
     # Save the results when TI_th is converged
     # Make DataFrame to register chi2
     column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+    column = ["RMS", "TIrego", "TIrock", "alpha", "chi2"]
     df = pd.DataFrame(columns=column)
+
 
     # Loop for Htheta (or CA, i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
-    for idx_Htheta, (Htheta, CA) in enumerate(zip(Htheta_list, CA_list)):
+    for idx_Htheta, (Htheta, rms) in enumerate(zip(Htheta_list, RMS_list)):
         # To extract two files
         # ex) tpmout_433_brute_A0.12_ti950_ca50_cr0.5.dat
         #  ->     *_ti{TIrego}_ca{CA}_*
         #     and *_ti{TIrock}_ca{CA}_*
-        ca_str = f"_ca{int(CA)}_"
+        #ca_str = f"_ca{int(CA)}_"
+
+        # Assume CA is always 90 deg
+        ca_str = f"_ca90_"
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
@@ -339,6 +355,7 @@ if __name__ == "__main__":
                 # Save info.
                 for a, c in zip(alpha_arr, chi2_arr):
                     #print(f"  -> alpha, chi2 = {a:.2f}, {c:.2f}")
-                    df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c]
+                    #df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c]
+                    df.loc[len(df)] = [rms, TIrego, TIrock, a, c]
 
     df.to_csv(args.out, sep=" ", index=False)
