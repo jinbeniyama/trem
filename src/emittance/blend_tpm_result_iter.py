@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Search best regolith abundance etc. using dual-component & brute-force method
@@ -24,9 +24,10 @@ from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
 
-from tpmwrapper.common import (
-    extract_flux, search_regolith_abundance, crater2Htheta, extract_bestparam)
-from tpmwrapper.util_Cambioni2021 import calc_TIth
+from trem.emittance.common_emittance import (
+    extract_flux, crater2Htheta, extract_bestparam)
+from trem.emittance.common_dualcomponent import search_regolith_abundance, blend_flux_numpy
+from trem.emittance.util_Cambioni2021 import calc_TIth
 
 
 if __name__ == "__main__":
