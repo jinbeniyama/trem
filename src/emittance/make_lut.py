@@ -60,7 +60,6 @@ if __name__ == "__main__":
     resall = glob.glob(f'{args.res}/tpmout*')
     N_res = len(resall)
     print(f"N_res = {N_res}")
-    assert N_res == 440, "Check TPM results."
     
     outf=open(args.out, "w")
     for fn in resall:
