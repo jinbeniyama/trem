@@ -239,7 +239,7 @@ if __name__ == "__main__":
         df = pd.DataFrame(columns=column)
 
         # Loop for RMS (i.e., roughness)
-        for idx_Htheta, (Htheta, rms) in enumerate(zip(Htheta_list, RMS_list)):
+        for idx_Htheta, (CR, rms) in enumerate(zip(CR_list, RMS_list)):
             # To extract two files
             # ex) tpmout_433_brute_A0.12_ti950_ca50_cr0.5.dat
             #  ->     *_ti{TIrego}_ca{CA}_*
@@ -247,13 +247,13 @@ if __name__ == "__main__":
             #ca_str = f"_ca{int(CA)}_"
 
             # Assume CA is always 90 deg
-            ca_str = f"_ca90_"
+            cr_str = f"_cr{float(CR):.1f}"
 
             # Loop for TI of regolith
             for idx_TIrego, TIrego in enumerate(TIrego_list):
                 # Extract fluxes of regolith (frego)
                 tirego_str = f"_ti{int(TIrego)}_"
-                resrego = [x for x in resall if (tirego_str in x) and (ca_str in x)]
+                resrego = [x for x in resall if (tirego_str in x) and (cr_str in x)]
                 frego = os.path.join(resdir, resrego[0])
                 df_rego = extract_flux(frego, fixscale)
 
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
                     # Extract fluxes of rock (frock)
                     tirock_str = f"_ti{int(TIrock)}_"
-                    resrock = [x for x in resall if (tirock_str in x) and (ca_str in x)]
+                    resrock = [x for x in resall if (tirock_str in x) and (cr_str in x)]
                     frock = os.path.join(resdir, resrock[0])
                     df_rock = extract_flux(frock, fixscale)
 
@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
     # Loop for Htheta (or CA, i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
-    for idx_Htheta, (Htheta, rms) in enumerate(zip(Htheta_list, RMS_list)):
+    for idx_Htheta, (CR, rms) in enumerate(zip(CR_list, RMS_list)):
         # To extract two files
         # ex) tpmout_433_brute_A0.12_ti950_ca50_cr0.5.dat
         #  ->     *_ti{TIrego}_ca{CA}_*
@@ -327,13 +327,13 @@ if __name__ == "__main__":
         #ca_str = f"_ca{int(CA)}_"
 
         # Assume CA is always 90 deg
-        ca_str = f"_ca90_"
+        cr_str = f"_cr{float(CR):.1f}"
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
             # Extract fluxes of regolith (frego)
             tirego_str = f"_ti{int(TIrego)}_"
-            resrego = [x for x in resall if (tirego_str in x) and (ca_str in x)]
+            resrego = [x for x in resall if (tirego_str in x) and (cr_str in x)]
             frego = os.path.join(resdir, resrego[0])
             df_rego = extract_flux(frego, fixscale)
 
@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
                 # Extract fluxes of rock (frock)
                 tirock_str = f"_ti{int(TIrock)}_"
-                resrock = [x for x in resall if (tirock_str in x) and (ca_str in x)]
+                resrock = [x for x in resall if (tirock_str in x) and (cr_str in x)]
                 frock = os.path.join(resdir, resrock[0])
                 df_rock = extract_flux(frock, fixscale)
 
