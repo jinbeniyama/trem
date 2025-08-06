@@ -50,6 +50,39 @@ def parseFile(fname, outfile):
             r0=r1+1
 
 
+def check_lut(f):
+    """Check look-up-table.
+
+    Parameter
+    ---------
+    f : str
+        look-up-table
+    """
+    df = pd.read_csv(f, header=None)
+    col = df.columns.tolist()
+
+    assert len(col) == 8, "Check the code"
+
+    print(f"Check {f}")
+
+    # Add columns
+    df.columns = ["TI", "Htheta", "CA", "CR", "A", "jd", "w", "f_model"]
+    col = df.columns.tolist()
+    print(f"columns: {col}")
+
+    jd_list = sorted(list(set(df.jd)))
+    print(f"jd (N={len(jd_list)}): {jd_list}")
+
+    TI_list = sorted(list(set(df.TI)))
+    CA_list = sorted(list(set(df.CA)))
+    CR_list = sorted(list(set(df.CR)))
+    Htheta_list = sorted(list(set(df.Htheta)))
+    print(f"TI (N={len(TI_list)}): {TI_list}")
+    print(f"CA (N={len(CA_list)}): {CA_list}")
+    print(f"CR (N={len(CR_list)}): {CR_list}")
+    print()
+
+
 if __name__ == "__main__":
     parser = ap(
         description="Make look-up-table.")
@@ -70,3 +103,9 @@ if __name__ == "__main__":
     for fn in resall:
         parseFile(fn,outf)
     outf.close()
+
+
+    # Check the look-up-table
+    print("")
+    print("Check look-up-table.")
+    check_lut(args.out)
