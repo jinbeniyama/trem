@@ -25,6 +25,11 @@ def parseFile(fname, outfile):
     gammaRho = paramList[3]
     bondA = paramList[4]
 
+    if gammaC == "5156.6":
+        print("gammaC = 5156.6 detected.")
+        print("Manually replace tbar with 90.0.")
+        gammaC = "90.0"
+
     ### extract TPM simualtion fluxes
     r0=0
     rMax = len(data)
@@ -63,8 +68,5 @@ if __name__ == "__main__":
     
     outf=open(args.out, "w")
     for fn in resall:
-        try:
-            parseFile(fn,outf)
-        except:
-            print("error on ", fn)
+        parseFile(fn,outf)
     outf.close()
