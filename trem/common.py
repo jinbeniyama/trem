@@ -50,7 +50,7 @@ mymark = ["o", "^", "s", "D", "*", "v", "<", ">", "h", "H"]
 mymark = mymark*500
 
 
-def make_ephemfile(asteroid, df, out, warmuptime_day=30):
+def make_ephemfile(asteroid, df, out, warmuptime_day=30, output_temp=None):
     """
     Make ephem file for TPM.
     Light time correction is unnecessary.
@@ -65,6 +65,8 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
         output ephem filename
     warmuptime_day : float, optional
         time for warming up in day
+    output_temp : array-like, optional
+        Output temperature map at this epoch
     """
     # Light-time correction is needless! (private com. with Marco DELBO, July 19 2024)
 
@@ -148,7 +150,11 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
                 if (idx == len(d_list)-1):
                     f_eph.write(f"{d} {x_S} {y_S} {z_S} 1\n")
                 else:
-                    f_eph.write(f"{d} {x_S} {y_S} {z_S}\n")
+                    # Output temperature
+                    if output_temp == d:
+                        f_eph.write(f"{d} {x_S} {y_S} {z_S} 4\n")
+                    else:
+                        f_eph.write(f"{d} {x_S} {y_S} {z_S}\n")
      
 
 def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):

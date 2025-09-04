@@ -21,6 +21,9 @@ if __name__ == "__main__":
         "obs", nargs="*", 
         help="jd, wavelength, flux, fluxerr, code, and cflag")
     parser.add_argument(
+        "--output_temp", type=float, default=None,
+        help="Epoch when temperature of faces are output")
+    parser.add_argument(
         "--rmnegativeflux", action="store_true", default=False,
         help="Remove negative fluxes and do not use them")
     parser.add_argument(
@@ -57,7 +60,7 @@ if __name__ == "__main__":
     df_con = pd.concat(df_list)
     
     # Make ephem file
-    make_ephemfile(args.obj, df_con, args.out_eph, args.warmuptime_day)
+    make_ephemfile(args.obj, df_con, args.out_eph, args.warmuptime_day, output_temp=args.output_temp)
 
     # Make obs file w/ or wo/ light-time correction
     make_obsfile(args.obj, df_con, args.out_obs, args.ltcor, args.rmnegativeflux)
