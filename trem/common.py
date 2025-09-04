@@ -130,7 +130,7 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
             t0 = d0 - margin0
             t1 = d1 + margin1
 
-            d_list = np.arange(t0, t1, 1)
+            d_list = np.arange(t0, t1+1, 1)
             for idx, d in enumerate(d_list):
                 # Location of @10 means Sun body center (=None) for vectors queries
                 # (not solar system barycenter, @0, @ssb).
