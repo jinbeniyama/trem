@@ -4,7 +4,6 @@
 """
 import os 
 from argparse import ArgumentParser as ap
-import pandas as pd
 import numpy as np
 import keras
 import pickle
@@ -26,9 +25,15 @@ def predict_flux_NN(modeldir, Epoch, wavelength, Gamma, theta):
     # Note 1: Wavelength, Gamma and Theta must be between their min and max values in LUT20250508
     # Note 2: Wavelength, Gamma and Theta must be single-value floats or array of the same length
 
-    # Load the model
-    model = keras.models.load_model(modeldir+'/NN_'+str(Epoch)+'.keras')
-    with open(modeldir+r"/scaler_in_"+str(Epoch)+".pkl", "rb") as input_file:
+    # Load the model 
+    # before 2025-09-13
+    #model = keras.models.load_model(modeldir+'/NN_'+str(Epoch)+'.keras')
+    #with open(modeldir+r"/scaler_in_"+str(Epoch)+".pkl", "rb") as input_file:
+    #    scaler = pickle.load(input_file)
+
+    # after 2025-09-13 (just the filenames are updated)
+    model = keras.models.load_model(modeldir+'/NN_'+str(Epoch))
+    with open(modeldir+r"/scaler_"+str(Epoch)+".pkl", "rb") as input_file:
         scaler = pickle.load(input_file)
 
     # Prepare the input array
@@ -68,7 +73,7 @@ if __name__ == "__main__":
 
     outdir = args.outdir
     if not os.path.isdir(outdir):
-      os.makedirs(outdir)
+        os.makedirs(outdir)
 
     TPM_sims = np.loadtxt(args.lut, delimiter = ',')
     epoch_unique_array = np.unique(TPM_sims[:,5])
@@ -85,14 +90,12 @@ if __name__ == "__main__":
                 print(f"Epoch {epoch_notuse} is removed.")
 
         print(f"  Updated unique epochs: N={len(epoch_unique_array)}")
-
-
     
+    # A thermal inertia and a Hapke thetabar.
     # These are just to extract wavelength
-    TI0 = 50
-    theta0 = 26.7
-
-    # TODO: Add these as optional arguments.
+    line0  = TPM_sims[0]
+    TI0    = line0[0]
+    theta0 = line0[1]
 
     # N = 30 x 20 = 600
     # N_TI = 30
