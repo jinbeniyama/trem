@@ -403,16 +403,15 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
 
 
 def calc_TIth(TI_rock, T_typical, obj):
-    """
-    Calculate threshold of thermal inertia of regolith and rock
-    (gamma_c in Cambioni+2021).
+    """Calculate threshold of thermal inertia of regolith and rock, gamma_c.
+
     gamma_c is defined as thermal inertia when D_p = l_s,
     where D_p is particle diameter and l_s is thermal skin depth.
 
     Parameters
     ----------
     TI_rock : float
-        thermal inertia of rock
+        thermal inertia of rock in tiu
     T_typical : float
         typical temperature in K
     obj : str
@@ -427,8 +426,6 @@ def calc_TIth(TI_rock, T_typical, obj):
     """
 
     # Fixed parameters in Cambioni+2021 =======================================
-    # emissivity 
-    emiss = 0.95
     # Non-isothermal correction factor
     fk = 1
     # Relationship between and k (conductivity) and phi 
@@ -437,6 +434,9 @@ def calc_TIth(TI_rock, T_typical, obj):
 
     if obj == "Bennu":
         # Parameters in Cambioni+2021
+        # Emissivity (fixed to 0.95 for Bennu in Cambioni+2021)
+        emiss = 0.95
+
         # Rotation period in hr
         rotP_hr = 4.296057
         rotP_s = rotP_hr*3600.
@@ -459,6 +459,9 @@ def calc_TIth(TI_rock, T_typical, obj):
 
 
     elif obj =="Eros":
+        # Emissivity (The same as TPM in Beniyama+)
+        emiss = 0.90
+
         # Rotation period in hr
         rotP_hr = 5.27
         rotP_s = rotP_hr*3600.
