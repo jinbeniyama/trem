@@ -426,10 +426,7 @@ def calc_TIth(TI_rock, T_typical, obj):
         threshold of thermal inertia of regolith and rock
     """
 
-    # To be updated
     # Fixed parameters in Cambioni+2021 =======================================
-
- 
     # emissivity 
     emiss = 0.95
     # Non-isothermal correction factor
@@ -545,14 +542,14 @@ if __name__ == "__main__":
         TIrock_list = np.arange(25, 2500, 25)
         TIth_list = []
 
-        print("  Plot TIrock vs. TIth : {args.action}")
+        print(f"  Plot TIrock vs. TIth")
         print(f"  Object: {obj}")
         print(f"  Temperature: {T_typical}")
 
         # Get threshold
         for TI_rock in TIrock_list:
             _, TIth = calc_TIth(TI_rock, T_typical, obj)
-            print(TIth)
+            #print(TIth)
             TIth_list.append(TIth)
 
         fig = plt.figure(figsize=(8, 6))
@@ -560,10 +557,12 @@ if __name__ == "__main__":
 
         ax.set_xlabel("TI of rock [tiu]")
         ax.set_ylabel("TI cutoff [tiu]")
-        ax.scatter(TIrock_list, TIth_list, color="black")
+        ax.plot(TIrock_list, TIth_list, color="black")
         ax.set_xscale("log")
+        ax.set_ylim([0, 100])
+        ax.set_title(obj)
 
-        plt.savefig("TIrock_vs_TIth.jpg")
+        plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
     
     # For future update
     elif args.action == "aaa":
