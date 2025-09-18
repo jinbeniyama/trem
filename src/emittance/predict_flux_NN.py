@@ -64,6 +64,24 @@ if __name__ == "__main__":
         "modeldir", type=str,
         help="Directory with NN model")
     parser.add_argument(
+        "--TI0", type=float, default=10,
+        help="Minimum TI")
+    parser.add_argument(
+        "--TI1", type=float, default=2500,
+        help="Maximum TI")
+    parser.add_argument(
+        "--TIstep", type=float, default=5,
+        help="Step pf TI")
+    parser.add_argument(
+        "--theta0", type=float, default=0,
+        help="Minimum theta bar")
+    parser.add_argument(
+        "--theta1", type=float, default=60,
+        help="Maximum theta bar")
+    parser.add_argument(
+        "--thetastep", type=float, default=1,
+        help="Step pf theta bar")
+    parser.add_argument(
         "--notuse", type=float, nargs="*", default=None,
         help="Epoch not used")
     parser.add_argument(
@@ -97,17 +115,8 @@ if __name__ == "__main__":
     TI0    = line0[0]
     theta0 = line0[1]
 
-    # N = 30 x 20 = 600
-    # N_TI = 30
-    TI_list = np.logspace(0,np.log10(2500),30)
-    # N_theta = 20
-    theta_list = np.linspace(0,60,20)
-    
-    # N = 500 x 61 = 30500
-    # TI = 500
-    TI_list = np.arange(5, 2505, 5)
-    # N_theta = 61
-    theta_list = np.arange(0, 61, 1)
+    TI_list = np.arange(args.TI0, args.TI1+args.TIstep, args.TIstep)
+    theta_list = np.arange(args.theta0, args.theta1+args.thetastep, args.thetastep)
     
     for i in range(len(epoch_unique_array)):
     
