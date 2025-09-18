@@ -25,8 +25,7 @@ import pandas as pd
 
 from trem.common import elapsedtime
 from trem.emittance.common_emittance import (
-    extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor,
-    extract_unique_epoch)
+    extract_bestparam, extract_unique_epoch)
 from trem.emittance.common_dualcomponent import search_regolith_abundance, blend_flux_numpy
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
@@ -40,7 +39,8 @@ if __name__ == "__main__":
         help="Results of NN")
     parser.add_argument(
         "--TI0", type=float, default=150,
-        help="Initial thermal inertia of rock to determine threshold of TI of regolith and rocks")
+        help="Initial thermal inertia of rock to determine 
+        threshold of TI of regolith and rocks")
     parser.add_argument(
         "--TI_thresh", type=float, default=False,
         help="Thermal inertia cutoff")
