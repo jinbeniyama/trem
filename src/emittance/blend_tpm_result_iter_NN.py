@@ -39,8 +39,8 @@ if __name__ == "__main__":
         help="Results of NN")
     parser.add_argument(
         "--TI0", type=float, default=150,
-        help="Initial thermal inertia of rock to determine 
-        threshold of TI of regolith and rocks")
+        help="Initial thermal inertia of rock to determine "
+        "threshold of TI of regolith and rocks")
     parser.add_argument(
         "--TI_thresh", type=float, default=False,
         help="Thermal inertia cutoff")
@@ -53,6 +53,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--chi2_min0", type=float, default=200000,
         help="Initial minimum chi2 used to find the best alpha")
+    parser.add_argument(
+        "--phi", type=float, default=0.20,
+        help="Macroporosity")
     parser.add_argument(
         "--astep", type=float, default=0.1,
         help="Step of regolith abundance")
@@ -101,12 +104,13 @@ if __name__ == "__main__":
     df_NN["scalefactor"] = 1
     Htheta_list = sorted(list(set(df_NN["Htheta"])))
     TI_list= sorted(list(set(df_NN["TI"])))
+    # Number of Htheta (roughness) and TI (thermal inertia)
+    N_Htheta = len(Htheta_list)
+    N_TI = len(TI_list)
+    # Just to count the number of data points
     df_temp = df_NN[
         (df_NN["Htheta"] == Htheta_list[0]) & (df_NN["TI"] == TI_list[0])
         ]
-    N_Htheta = len(Htheta_list)
-    N_TI = len(TI_list)
-
     # Number of data points
     N_data = len(df_temp)
 
@@ -121,9 +125,6 @@ if __name__ == "__main__":
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
     print(f"List of regolith abundance: {alpha_list}")
     print("")
-    
-
-
 
     if args.TI_thresh:
         TI_thresh = args.TI_thresh
@@ -154,7 +155,7 @@ if __name__ == "__main__":
             T_typical = args.T_typical
             # Determine a TI_threshold with TI_rock
             # (See trem/emittance/util_Cambioni2021.py for detail)
-            _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj)
+            _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj, args.phi)
 
             # Make lists of TIrock and TIrego with a given TI_thresh
             TIrock_list = [x for x in TI_list if x >= TI_thresh]
@@ -211,7 +212,7 @@ if __name__ == "__main__":
             # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             
             # Determine the best fit parameters (TI_rock, TI_rego, Htheta)
-            # Note: alpha is already fit)
+            # Note: alpha is already fit
             key_chi2 = "chi2"
             # Use only TIrock to check the convergence
             params = ["TIrock"]
