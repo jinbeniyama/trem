@@ -134,20 +134,21 @@ def Nc_Suzuki(phi):
     return Nc
 
 
-def make_Fmech2(depth, rho, Rs, phi, planet):
+def make_Fmech2(depth, rho_e, Rs, phi, planet):
     """
     Calculate the mechanical force due to depth, density, radius, and porosity for a given planet.
     
     Parameters
     ----------
     depth : float
-        Depth of the material (meters).
-    rho : float
-        Density of the material (kg/m³).
+        Depth of the material in m.
+    rho_e : float
+        Effective bulk density of the material in kg/m^3
+        rho_e = (1-phi)(1-Phi)rho_s, where rho_s is material density.
     Rs : float
-        Radius of the spherical object (meters).
+        Radius of the spherical object in m.
     phi : float
-        Porosity (dimensionless).
+        Macroscopic porosity
     planet : str
         Name of the planet (e.g., 'Earth', 'Mars', 'Moon', etc.).
     
@@ -174,7 +175,7 @@ def make_Fmech2(depth, rho, Rs, phi, planet):
     g = planet_gravity.get(planet, 9.80665)
     
     # Calculate the mechanical force
-    Fmech = 2.0 * np.pi * rho * g * depth * (Rs**2) / (np.sqrt(6.0) * (1.0 - phi))
+    Fmech = 2.0 * np.pi * rho_e * g * depth * (Rs**2) / (np.sqrt(6.0) * (1.0 - phi))
     
     return Fmech
 
@@ -335,14 +336,14 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     if rc_fixed:
         rc_sakatani = rc_fixed
     if rc_fixed_ratio:
-        # rc_jkr(sphere_diam/2.0) ?
         rc_sakatani = (sphere_diam/2.0) * rc_fixed_ratio
 
     gamma = rc_sakatani / sphere_diam
     
-    # TODO: Check
+    # The same as Cambioni+2021
     if zetaxi:
         xi = 0.12
+    
 
     # Solid conductivity calculations
     Hs = ((4.0 * np.pi / 3.0) ** (1.0 / 3.0)) * (sphere_diam / 2.0) * k_s
@@ -379,6 +380,7 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     fk_predicted = a1 * np.arctan(a2 * (1 / Lambda_s) ** a3) + a4
 
     # TODO: Ensure fk <= 1?
+    # This seems always 1
     fk_predicted = np.where(fk_predicted > 1.0, 1.0, fk_predicted)
     #print(fk_predicted)
 
@@ -442,6 +444,8 @@ def calc_TIth(TI_rock, T_typical, obj):
     # Relationship between and k (conductivity) and phi 
     # "flynn" is used in Cambioni+2021
     model = "flynn"
+    # Fixed parameters in Cambioni+2021 =======================================
+
 
     if obj == "Bennu":
         # Parameters in Cambioni+2021
@@ -453,7 +457,7 @@ def calc_TIth(TI_rock, T_typical, obj):
         rotP_s = rotP_hr*3600.
 
         # Macroporosity
-        # Reference
+        # 0.15, 0.40 (nominal), and 0.60 are used.
         phi = 0.4
 
         # Grain density of CM meteorites in kg/m^3
@@ -466,6 +470,7 @@ def calc_TIth(TI_rock, T_typical, obj):
         # as a function of (T_typical)
         # So constant value cannot reproduce the 
         # same result as Cambioni+2021
+        # T ~ 300 K 
         c_p = 750.0
 
 
@@ -498,7 +503,9 @@ def calc_TIth(TI_rock, T_typical, obj):
     xi = 0.12
 
     # Particle diameter array from 100 microns to 15 cm
-    D_arr = np.linspace(0.100e-3, 0.150e-2, 150)
+    # in m
+    #D_arr = np.linspace(0.100e-3, 0.150e-2, 150)
+    D_arr = np.linspace(100e-6, 150e-3, 10000)
 
     # Calculate k_m (conductivity) and rho (material density of rock fragments) based on TIrock
     result = calc_prop(
@@ -575,7 +582,7 @@ if __name__ == "__main__":
         ax.set_ylabel("TI cutoff [tiu]")
         ax.plot(TIrock_list, TIth_list, color="black")
         ax.set_xscale("log")
-        ax.set_ylim([0, 100])
+        #ax.set_ylim([0, 100])
         ax.set_title(obj)
 
         plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
