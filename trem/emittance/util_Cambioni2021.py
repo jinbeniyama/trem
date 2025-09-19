@@ -415,7 +415,7 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     return out
 
 
-def calc_TIth(TI_rock, T_typical, obj):
+def calc_TIth(TI_rock, T_typical, obj, phi):
     """Calculate threshold of thermal inertia of regolith and rock, gamma_c.
 
     gamma_c is defined as thermal inertia when D_p = l_s,
@@ -429,6 +429,8 @@ def calc_TIth(TI_rock, T_typical, obj):
         typical temperature in K
     obj : str
         target name (e.g., Bennu, Eros)
+    phi: float
+        Macroscopic porosity
 
     Returns
     -------
@@ -458,7 +460,6 @@ def calc_TIth(TI_rock, T_typical, obj):
 
         # Macroporosity
         # 0.15, 0.40 (nominal), and 0.60 are used.
-        phi = 0.4
 
         # Grain density of CM meteorites in kg/m^3
         rho_s = 2920
@@ -485,7 +486,7 @@ def calc_TIth(TI_rock, T_typical, obj):
         # Macroporosity
         # Wilkison+2002, Icarus, 155, 94
         # best estimated to be 20%
-        phi = 0.2
+        #phi = 0.2
 
         # Grain density of ordinary meteorites in kg/m^3
         # From table 1 of Macke et al. 2019, MPS, 54, 2729.
@@ -563,28 +564,32 @@ if __name__ == "__main__":
         obj = args.obj
         T_typical = args.T_typical
         TIrock_list = np.arange(25, 2500, 25)
-        TIth_list = []
 
         print(f"  Plot TIrock vs. TIth")
-        print(f"  Object: {obj}")
+        print(f"  Object: {obj}, T={T_typical} [K]")
         print(f"  Temperature: {T_typical}")
-
-        # Get threshold
-        for TI_rock in TIrock_list:
-            _, TIth = calc_TIth(TI_rock, T_typical, obj)
-            #print(TIth)
-            TIth_list.append(TIth)
 
         fig = plt.figure(figsize=(8, 6))
         ax = fig.add_axes([0.15, 0.15, 0.7, 0.7])
-
         ax.set_xlabel("TI of rock [tiu]")
         ax.set_ylabel("TI cutoff [tiu]")
-        ax.plot(TIrock_list, TIth_list, color="black")
         ax.set_xscale("log")
-        #ax.set_ylim([0, 100])
-        ax.set_title(obj)
+        ax.set_title(f"{obj}, T={T_typical} [K]")
+        ax.set_ylim([0, 200])
 
+        phi_list = [0.15, 0.40, 0.60]
+        ls_list = ["solid", "dashed", "dotted"]
+        col_list = ["black", "red", "blue"]
+        for idx, phi in enumerate(phi_list):
+            TIth_list = []
+            for TI_rock in TIrock_list:
+                _, TIth = calc_TIth(TI_rock, T_typical, obj, phi)
+                TIth_list.append(TIth)
+
+            ax.plot(
+                TIrock_list, TIth_list, ls=ls_list[idx], color=col_list[idx], label=f"$\phi={phi}$")
+
+        ax.legend(loc="lower right")
         plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
     
     # For future update
