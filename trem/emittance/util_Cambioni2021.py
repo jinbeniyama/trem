@@ -31,7 +31,7 @@ from trem.emittance.material import (
 SB_const = const.sigma_sb.value
 
 
-def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_hr=4.296057):
+def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_hr=4.296057, phi=0.50):
     """
     Computes the relevant thermal conductivity, density, and related properties
     based on the desired thermal inertia (TI).
@@ -47,6 +47,8 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
         "avg", "henke", and "flynn" (default: "avg").
     rho_s : float, optional
         Grain density, default is 2920.0 (average CM from Macke et al., 2011).
+    phi : float, optional
+        macroscopic porosity
 
     Returns
     -------
@@ -69,17 +71,20 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     henke_k = 4.3 * np.exp(-Phi / 0.08)
     avg_k = (flynn_k + henke_k) / 2.0
 
-    print(f"  flynn_k, henke_k, avg_k = {flynn_k}, {henke_k}, {avg_k}")
+    print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
 
     if model == "henke":
         avg_k = henke_k
     elif model == "flynn":
         avg_k = flynn_k
 
-    # Bulk density calculation
-    rho_b = (1.0 - Phi) * rho_s
+    # Bulk density
+    rho_b = rho_s * (1 - Phi)
+    # Effective bulk density
+    rho_e = rho_b * (1 - phi)
 
     # Thermal inertia calculation
+    # Note: rho_b is used in the original code (Cambioni+2021)
     TI = np.sqrt(rho_b * avg_k * specific_heat)
 
     # Find porosity corresponding to the desired TI
@@ -98,6 +103,7 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     # Thermal skin depth
     skin_depth = np.sqrt(out_k * rotP_s / (out_rho_b * specific_heat * np.pi))
 
+
     return {
         "k": out_k,
         "rho_b": out_rho_b,
@@ -107,14 +113,14 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     }
 
 
-def Nc_Suzuki(Phi):
+def Nc_Suzuki(phi):
     """
     Calculate the coordination number (Nc).
 
     Parameters
     ----------
-    Phi : float
-        microporosity of the material (between 0 and 1).
+    phi : float
+        macroporosity of the material (between 0 and 1).
 
     Returns
     -------
@@ -122,9 +128,9 @@ def Nc_Suzuki(Phi):
         The coordination number Nc.
     """
     # Used by Sakatani 2017; 2018 for calculating coordination number. 
-    f = 0.07318 + 2.193*Phi - 3.357*Phi**2 + 3.194*Phi**3
+    f = 0.07318 + 2.193*phi - 3.357*phi**2 + 3.194*phi**3
     # coordination number, Suzuki et al 1981
-    Nc = (2.812*(1.0 - Phi)**(-1./3.))/((f**2.)*(1.0 + f**2.)) 
+    Nc = (2.812*(1.0 - phi)**(-1./3.))/((f**2.)*(1.0 + f**2.)) 
     return Nc
 
 
@@ -315,15 +321,15 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     poissons = props["poissons"]
     youngs = props["youngs"]
     k_s_func = props["k_s_func"]
-    rho_bulk = props["rho_bulk"]
+    rho_b = props["rho_bulk"]
 
     k_s = k_s_func(T)
     
     # Consider macroporosity
-    rho = rho_bulk * (1.0 - phi)
+    rho_e = rho_b * (1.0 - phi)
 
     # Calculate the mechanical force (lithostatic pressure)
-    Fmech2 = make_Fmech2(depth, rho, sphere_diam / 2.0, phi, planet)
+    Fmech2 = make_Fmech2(depth, rho_e, sphere_diam / 2.0, phi, planet)
     rc_sakatani = rc_jkr(sphere_diam / 2.0, Fmech2, surfenergy, poissons, youngs) * rc_factor
     
     if rc_fixed:
@@ -400,7 +406,7 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     out["k_rad_GB"] = k_rad_GB
     out["rc"] = rc
     out["Nc"] = Nc
-    out["rho"] = rho
+    out["rho_e"] = rho_e
     out["fk_predicted"] = fk_predicted
     out["zeta"] = zeta
     out["xi"] = xi
@@ -496,7 +502,7 @@ def calc_TIth(TI_rock, T_typical, obj):
 
     # Calculate k_m (conductivity) and rho (material density of rock fragments) based on TIrock
     result = calc_prop(
-        TI_rock, model=model, specific_heat=c_p, rho_s=rho_s, rotP_hr=rotP_hr)  
+        TI_rock, model=model, specific_heat=c_p, rho_s=rho_s, rotP_hr=rotP_hr, phi=phi)  
     # rho_b: Bulk density
     k_m, rho_b = result["k"], result["rho_b"]
     # rho_e: Effective bulk density
