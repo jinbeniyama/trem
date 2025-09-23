@@ -8,6 +8,7 @@ Note: Assume that bond albedo A is fixed.
 from argparse import ArgumentParser as ap
 import pandas as pd
 import numpy as np
+import corner
 
 from trem.emittance.common_emittance import calc_confidence_chi2
 
@@ -35,6 +36,42 @@ def extract_npercent(samples, percent=68):
     val_l = med - lower
     val_u = upper - med
     return med, val_l, val_u
+
+
+def extract_npercent_from_best(samples, percent=68, best=None):
+    """
+
+    Returns
+    -------
+    best : float
+    err_lower : float
+        best - lower_bound
+    err_upper : float
+        upper_bound - best
+    """
+    samples = np.asarray(samples)
+    if best is None:
+        best = np.median(samples)
+
+    lower_target = percent / 2.0
+    upper_target = 100 - percent / 2.0
+
+    cdf = np.sort(samples)
+    n = len(cdf)
+
+    frac = np.searchsorted(cdf, best) / n * 100
+
+    if frac >= lower_target and frac <= upper_target:
+        lo, hi = np.percentile(samples, [100 - upper_target, upper_target])
+    elif frac < lower_target:
+        lo = np.min(samples)
+        hi = np.percentile(samples, percent)
+    else:
+        lo = np.percentile(samples, 100 - percent)
+        hi = np.max(samples)
+
+    return best, best - lo, hi - best
+
 
 
 if __name__ == "__main__":
@@ -69,7 +106,6 @@ if __name__ == "__main__":
     title = f"TI_th = {args.TI_thresh}"
 
     print(f"  Use equation in {args.paper} with nsigma of {args.nsigma}")
-
 
     dof = args.dof
     # Calculate reduced chi2 
@@ -120,12 +156,10 @@ if __name__ == "__main__":
         "{" + f"+{alpha_nsigu-alpha_min:.2f}" + "}" + f"$ (N={len(alpha_arr_sig)})\n"
         )
 
-    import corner
     param_cols = ['Htheta', 'TIrego', 'TIrock', 'alpha']
 
     # Choose reliable once
     df = df[df["chi2"] < chi2_min + chi2_nsigma]
-
 
     # Remove specific columns to avoid a following error
     # > ValueError: It looks like the parameter(s) in column(s) 1 have no dynamic range. Please provide a `range` argument.
@@ -149,17 +183,14 @@ if __name__ == "__main__":
         bins=50
         )
 
-
     percent_interest = 68
-    fig.text(0.6, 0.8, f"The median and the interval\nthat contains {percent_interest}% of the samples are shown.")
+    fig.text(0.55, 0.8, f"The best fit (not median) and the interval\nthat contains {percent_interest}% of the samples are shown.")
     
     # Obtain axes 
     axes = np.array(fig.axes).reshape(len(param_cols), len(param_cols))
     # Show median and +- percent/2
     for i, col in enumerate(param_cols):
         ax = axes[i, i]
-        # Calculate median and 1-sigma uncertainties to include 68% samples
-        med, val_l, val_u = extract_npercent(data_array[:, i], percent_interest)
 
         if col == "TIrego":
             val_chi2_min = TIrego_min
@@ -170,12 +201,19 @@ if __name__ == "__main__":
         elif col == "alpha":
             val_chi2_min = alpha_min
 
+        # Calculate median and 1-sigma uncertainties to include percent_interest% samples
+        med, val_l, val_u = extract_npercent(data_array[:, i], percent_interest)
         print(f"med, val_l, val_u = {med:.1f}, {val_l:.1f}, {val_u:.1f}")
-        text = f"TI_rego = ${med:.1f}_" + "{" + f"{val_l:.1f}" + "}^" + "{" + f"{val_u:.1f}" + "}$"
-        ax.axvline(med, color="red", linestyle="solid", linewidth=2, label="median")
-        #ax.axvline(val_chi2_min, color="blue", linestyle="dotted", linewidth=1.5, label="Solution gives $\chi^2_{min}$", zorder=100)
-        ax.axvline(med-val_l, color="red", linestyle="dashed", linewidth=2,)
-        ax.axvline(med+val_u, color="red", linestyle="dashed", linewidth=2,)
+
+        # de Kleer+2024 use not median but the best fit value
+        # Best fit + percent_interest 
+        _, val_l, val_u = extract_npercent_from_best(data_array[:, i], percent_interest, best=val_chi2_min)
+        print(f"bestfit, val_l, val_u = {val_chi2_min:.1f}, {val_l:.1f}, {val_u:.1f}")
+        text = f"{col} = ${val_chi2_min:.1f}_" + "{" + f"-{val_l:.1f}" + "}^" + "{" + f"+{val_u:.1f}" + "}$"
+
+        ax.axvline(val_chi2_min, color="red", linestyle="solid", linewidth=1.5, label="Best fit", zorder=100)
+        ax.axvline(val_chi2_min-val_l, color="red", linestyle="dashed", linewidth=2,)
+        ax.axvline(val_chi2_min+val_u, color="red", linestyle="dashed", linewidth=2,)
         ax.set_title(text, fontsize=12)
         ax.legend(fontsize=10)
         # Add margin
