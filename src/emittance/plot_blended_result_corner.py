@@ -159,18 +159,18 @@ if __name__ == "__main__":
     param_cols = ['Htheta', 'TIrego', 'TIrock', 'alpha']
 
     # Choose reliable once
-    df = df[df["chi2"] < chi2_min + chi2_nsigma]
+    df1 = df[df["chi2"] < chi2_min + chi2_nsigma]
 
     # Remove specific columns to avoid a following error
     # > ValueError: It looks like the parameter(s) in column(s) 1 have no dynamic range. Please provide a `range` argument.
     for p in param_cols:
-        N_p = len(set(df[p]))
+        N_p = len(set(df1[p]))
         if N_p == 1:
             param_cols.remove(p)
             print(f"Not plot {p}")
 
 
-    data_array = df[param_cols].values
+    data_array = df1[param_cols].values
     fig = corner.corner(
         data_array, labels=param_cols, 
         #show_titles=True, 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         )
 
     percent_interest = 68
-    fig.text(0.55, 0.8, f"The best fit (not median) and the interval\nthat contains {percent_interest}% of the samples are shown.")
+    #fig.text(0.55, 0.8, f"The best fit (not median) and the interval\nthat contains {percent_interest}% of the samples are shown.")
     
     # Obtain axes 
     axes = np.array(fig.axes).reshape(len(param_cols), len(param_cols))
@@ -201,19 +201,27 @@ if __name__ == "__main__":
         elif col == "alpha":
             val_chi2_min = alpha_min
 
-        # Calculate median and 1-sigma uncertainties to include percent_interest% samples
-        med, val_l, val_u = extract_npercent(data_array[:, i], percent_interest)
-        print(f"med, val_l, val_u = {med:.1f}, {val_l:.1f}, {val_u:.1f}")
+        # 1. Calculate median and 1-sigma uncertainties to include percent_interest% samples
+        #med, val_l, val_u = extract_npercent(data_array[:, i], percent_interest)
+        #print(f"med, val_l, val_u = {med:.1f}, {val_l:.1f}, {val_u:.1f}")
 
-        # de Kleer+2024 use not median but the best fit value
+        # 2. de Kleer+2024 use not median but the best fit value
         # Best fit + percent_interest 
         _, val_l, val_u = extract_npercent_from_best(data_array[:, i], percent_interest, best=val_chi2_min)
-        print(f"bestfit, val_l, val_u = {val_chi2_min:.1f}, {val_l:.1f}, {val_u:.1f}")
-        text = f"{col} = ${val_chi2_min:.1f}_" + "{" + f"-{val_l:.1f}" + "}^" + "{" + f"+{val_u:.1f}" + "}$"
+        #print(f"bestfit, val_l, val_u = {val_chi2_min:.1f}, {val_l:.1f}, {val_u:.1f}")
+        #text = f"{col} = ${val_chi2_min:.1f}_" + "{" + f"-{val_l:.1f}" + "}^" + "{" + f"+{val_u:.1f}" + "}$"
+
+        # 3. Use all samples because already extracted with chi-squared
+        val_arr = np.array(df[col])
+        val_arr_sig = val_arr[chi2_arr < chi2_min + chi2_nsigma]
+        val_nsigl, val_nsigu = np.min(val_arr_sig), np.max(val_arr_sig)
+        text = (
+                f"{col} = ${val_chi2_min:.2f}_" + "{" + f"-{val_chi2_min-val_nsigl:.2f}" + "}^" 
+                "{" + f"+{val_nsigu-val_chi2_min:.2f}" + "}$")
 
         ax.axvline(val_chi2_min, color="red", linestyle="solid", linewidth=1.5, label="Best fit", zorder=100)
-        ax.axvline(val_chi2_min-val_l, color="red", linestyle="dashed", linewidth=2,)
-        ax.axvline(val_chi2_min+val_u, color="red", linestyle="dashed", linewidth=2,)
+        #ax.axvline(val_chi2_min-val_l, color="red", linestyle="dashed", linewidth=2,)
+        #ax.axvline(val_chi2_min+val_u, color="red", linestyle="dashed", linewidth=2,)
         ax.set_title(text, fontsize=12)
         ax.legend(fontsize=10)
         # Add margin
