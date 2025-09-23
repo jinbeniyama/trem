@@ -50,6 +50,9 @@ if __name__ == "__main__":
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
     parser.add_argument(
+        "--nsigma", type=float, default=1.0,
+        help="n-sigma uncertainty")
+    parser.add_argument(
         "--scale_all", action="store_true", default=False,
         help="Use global scale factor")
     parser.add_argument(
@@ -138,7 +141,10 @@ if __name__ == "__main__":
     # Plot
     fig = plt.figure(figsize=(12, 6))
     ax = fig.add_axes([0.15, 0.15, 0.55, 0.80])
-    ax.grid(which="both", color="gray",linewidth=0.2)
+    if args.nogrid:
+        pass
+    else:
+        ax.grid(which="both", color="gray",linewidth=0.2)
 
     axin = ax.inset_axes([0.60, 0.50, 0.35, 0.35])
 
@@ -338,20 +344,16 @@ if __name__ == "__main__":
 
     
 
-    # Add 1-sigma, 3-sigma ====================================================
-    chi2_1sigma = calc_confidence_chi2(
-        args.paper, chi2_min, dof, 1, args.reduce)
-    chi2_3sigma = calc_confidence_chi2(
-        args.paper, chi2_min, dof, 3, args.reduce)
+    # Add n-sigma =============================================================
+    nsigma = args.nsigma
+    chi2_nsigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, nsigma, args.reduce)
     
     for a in [ax, axin]:
         xmin, xmax = a.get_xlim()
         a.hlines(
-            chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", 
-            label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
-        a.hlines(
-            chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", 
-            label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
+            chi2_min + chi2_nsigma, xmin, xmax, ls="dashed", color="black", 
+            label=f"{nsigma}" + r"$\sigma$" + f" ({chi2_nsigma:.2f}) {args.paper}")
         a.set_xlim([xmin, xmax])
     # Add 1-sigma, 3-sigma ====================================================
 
@@ -375,15 +377,15 @@ if __name__ == "__main__":
     else:
         assert False, "Not implimented"
 
-    val_arr_sig = val_arr[chi2_arr < chi2_min + chi2_3sigma]
-    val3sigl, val3sigu = np.min(val_arr_sig), np.max(val_arr_sig)
+    val_arr_sig = val_arr[chi2_arr < chi2_min + chi2_nsigma]
+    val_nsigl, val_nsigu = np.min(val_arr_sig), np.max(val_arr_sig)
     text = (
-        f"{val}= ${valbest:.2f}_" + "{" + f"-{valbest-val3sigl:.2f}" + "}^" 
-        "{" + f"+{val3sigu-valbest:.2f}" + "}" + f"$ (N={len(val_arr_sig)})"
+        f"{val}= ${valbest:.2f}_" + "{" + f"-{valbest-val_nsigl:.2f}" + "}^" 
+        "{" + f"+{val_nsigu-valbest:.2f}" + "}" + f"$ (N={len(val_arr_sig)}) ({nsigma}-sigma)"
         )
     axin.text(0.1, 0.80, text, size=12, transform=axin.transAxes)
-    val_0, val_1 = val3sigl*0.8, val3sigu*1.2
-    chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_3sigma)*1.2
+    val_0, val_1 = val_nsigl*0.8, val_nsigu*1.2
+    chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_nsigma)*1.2
     axin.set_xlim([val_0, val_1])
     axin.set_ylim([chi2_0, chi2_1])
 
