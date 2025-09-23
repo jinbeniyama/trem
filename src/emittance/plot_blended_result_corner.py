@@ -12,6 +12,31 @@ import numpy as np
 from trem.emittance.common_emittance import calc_confidence_chi2
 
 
+def extract_npercent(samples, percent=68):
+    """Obtian median and uncertainties.
+
+    Parameters
+    ----------
+    samples : array-like
+        samples
+    percent : float
+        percentage of interest
+
+    Return
+    ------
+    med, val_l, val_u : float
+        median, lower and upper bounds
+    """
+    samples = np.asarray(samples)
+    med = np.median(samples)
+
+    alpha = (100 - percent) / 2
+    lower, upper = np.percentile(samples, [alpha, 100 - alpha])
+    val_l = med - lower
+    val_u = upper - med
+    return med, val_l, val_u
+
+
 if __name__ == "__main__":
     parser = ap(description="Plot a corner plot.")
     parser.add_argument(
@@ -101,6 +126,7 @@ if __name__ == "__main__":
     # Choose reliable once
     df = df[df["chi2"] < chi2_min + chi2_nsigma]
 
+
     # Remove specific columns to avoid a following error
     # > ValueError: It looks like the parameter(s) in column(s) 1 have no dynamic range. Please provide a `range` argument.
     for p in param_cols:
@@ -108,6 +134,7 @@ if __name__ == "__main__":
         if N_p == 1:
             param_cols.remove(p)
             print(f"Not plot {p}")
+
 
     data_array = df[param_cols].values
     fig = corner.corner(
@@ -121,4 +148,37 @@ if __name__ == "__main__":
         plot_contours=True,
         bins=50
         )
+
+
+    percent_interest = 68
+    fig.text(0.6, 0.8, f"The median and the interval\nthat contains {percent_interest}% of the samples are shown.")
+    
+    # Obtain axes 
+    axes = np.array(fig.axes).reshape(len(param_cols), len(param_cols))
+    # Show median and +- percent/2
+    for i, col in enumerate(param_cols):
+        ax = axes[i, i]
+        # Calculate median and 1-sigma uncertainties to include 68% samples
+        med, val_l, val_u = extract_npercent(data_array[:, i], percent_interest)
+
+        if col == "TIrego":
+            val_chi2_min = TIrego_min
+        elif col == "TIrock":
+            val_chi2_min = TIrock_min
+        elif col == "Htheta":
+            val_chi2_min = Htheta_min
+        elif col == "alpha":
+            val_chi2_min = alpha_min
+
+        print(f"med, val_l, val_u = {med:.1f}, {val_l:.1f}, {val_u:.1f}")
+        text = f"TI_rego = ${med:.1f}_" + "{" + f"{val_l:.1f}" + "}^" + "{" + f"{val_u:.1f}" + "}$"
+        ax.axvline(med, color="red", linestyle="solid", linewidth=2, label="median")
+        #ax.axvline(val_chi2_min, color="blue", linestyle="dotted", linewidth=1.5, label="Solution gives $\chi^2_{min}$", zorder=100)
+        ax.axvline(med-val_l, color="red", linestyle="dashed", linewidth=2,)
+        ax.axvline(med+val_u, color="red", linestyle="dashed", linewidth=2,)
+        ax.set_title(text, fontsize=12)
+        ax.legend(fontsize=10)
+        # Add margin
+        ax.set_xlim(np.array(ax.get_xlim()) * [0.8, 1.2])
+
     fig.savefig(args.out, dpi=300, bbox_inches='tight')
