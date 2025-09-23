@@ -68,6 +68,9 @@ if __name__ == "__main__":
         "--paper", type=str, default="P14",
         help="P14 or V17, type of uncertainty")
     parser.add_argument(
+        "--nogrid", action="store_true", default=False,
+        help="Do not use grid")
+    parser.add_argument(
         "--logx", action="store_true", default=False,
         help="Use log scale in x axis")
     parser.add_argument(
