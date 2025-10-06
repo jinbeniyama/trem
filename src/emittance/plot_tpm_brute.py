@@ -207,7 +207,7 @@ if __name__ == "__main__":
         chi2_new_list = []
         Htheta_list_sort = sorted(list(set(Htheta_list)))
         Htheta_used = []
-        for f in args.res:
+        for idx,f in enumerate(args.res):
             # To check the origin of genmesh FAILED
             #print(f)
             df_temp = extract_flux(f, fixscale)
