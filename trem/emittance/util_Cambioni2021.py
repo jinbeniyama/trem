@@ -14,12 +14,15 @@ k_s (wo/suffi  x)   : solid thermal conductivity
 k_rad               : radiative thermal conductivity
 Phi                 : microporosity (inside particles)
 phi                 : macroporosity (between particles)
+rho_s               : grain density
+rho_b               : bulk density, i.e., (1.0 - Phi) * rho_s
+rho_e               : effective bulk density, i.e., (1 - phi)(1 - Phi) * rho_s
 """
 from argparse import ArgumentParser as ap
 import numpy as np
 from astropy import constants as const
 import matplotlib.pyplot as plt
-from tpmwrapper.material import (
+from trem.emittance.material import (
     get_material_properties, calc_k_rad_GB, calc_k_rad_sakatani, 
     c_p_ordinary_chondrite)
 
@@ -28,7 +31,7 @@ from tpmwrapper.material import (
 SB_const = const.sigma_sb.value
 
 
-def calc_prop(desired_TI, specific_heat=750.0, model="avg", grain_density=2920.0, rotP_hr=4.296057):
+def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_hr=4.296057, phi=0.50):
     """
     Computes the relevant thermal conductivity, density, and related properties
     based on the desired thermal inertia (TI).
@@ -42,8 +45,10 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", grain_density=2920.0
     model : str, optional
         Model for converting between porosity and conductivity. Options are
         "avg", "henke", and "flynn" (default: "avg").
-    grain_density : float, optional
+    rho_s : float, optional
         Grain density, default is 2920.0 (average CM from Macke et al., 2011).
+    phi : float, optional
+        macroscopic porosity
 
     Returns
     -------
@@ -66,16 +71,21 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", grain_density=2920.0
     henke_k = 4.3 * np.exp(-Phi / 0.08)
     avg_k = (flynn_k + henke_k) / 2.0
 
+    print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
+
     if model == "henke":
         avg_k = henke_k
     elif model == "flynn":
         avg_k = flynn_k
 
-    # Density calculation
-    density = (1.0 - Phi) * grain_density
+    # Bulk density
+    rho_b = rho_s * (1 - Phi)
+    # Effective bulk density
+    rho_e = rho_b * (1 - phi)
 
     # Thermal inertia calculation
-    TI = np.sqrt(density * avg_k * specific_heat)
+    # Note: rho_b is used in the original code (Cambioni+2021)
+    TI = np.sqrt(rho_b * avg_k * specific_heat)
 
     # Find porosity corresponding to the desired TI
     if desired_TI < TI.min() or desired_TI > TI.max():
@@ -83,7 +93,7 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", grain_density=2920.0
 
     out_Phi = np.interp(desired_TI, TI[::-1], Phi[::-1])
     out_k = np.interp(out_Phi, Phi, avg_k)
-    out_rho = grain_density * (1.0 - out_Phi)
+    out_rho_b = rho_s * (1.0 - out_Phi)
 
     # Surface roughness temperature fluctuation scaling factor
     # Serpentine value from Grott et al., 2019
@@ -91,25 +101,26 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", grain_density=2920.0
     sigma_t = (np.pi / 4000.0) * (out_k / ks) * (10.0e6)
 
     # Thermal skin depth
-    skin_depth = np.sqrt(out_k * rotP_s / (out_rho * specific_heat * np.pi))
+    skin_depth = np.sqrt(out_k * rotP_s / (out_rho_b * specific_heat * np.pi))
+
 
     return {
         "k": out_k,
-        "rho": out_rho,
+        "rho_b": out_rho_b,
         "Phi": out_Phi,
         "sigma_t": sigma_t,
         "skin_depth": skin_depth,
     }
 
 
-def Nc_Suzuki(Phi):
+def Nc_Suzuki(phi):
     """
     Calculate the coordination number (Nc).
 
     Parameters
     ----------
-    Phi : float
-        microporosity of the material (between 0 and 1).
+    phi : float
+        macroporosity of the material (between 0 and 1).
 
     Returns
     -------
@@ -117,26 +128,27 @@ def Nc_Suzuki(Phi):
         The coordination number Nc.
     """
     # Used by Sakatani 2017; 2018 for calculating coordination number. 
-    f = 0.07318 + 2.193*Phi - 3.357*Phi**2 + 3.194*Phi**3
+    f = 0.07318 + 2.193*phi - 3.357*phi**2 + 3.194*phi**3
     # coordination number, Suzuki et al 1981
-    Nc = (2.812*(1.0 - Phi)**(-1./3.))/((f**2.)*(1.0 + f**2.)) 
+    Nc = (2.812*(1.0 - phi)**(-1./3.))/((f**2.)*(1.0 + f**2.)) 
     return Nc
 
 
-def make_Fmech2(depth, rho, Rs, phi, planet):
+def make_Fmech2(depth, rho_e, Rs, phi, planet):
     """
     Calculate the mechanical force due to depth, density, radius, and porosity for a given planet.
     
     Parameters
     ----------
     depth : float
-        Depth of the material (meters).
-    rho : float
-        Density of the material (kg/m³).
+        Depth of the material in m.
+    rho_e : float
+        Effective bulk density of the material in kg/m^3
+        rho_e = (1-phi)(1-Phi)rho_s, where rho_s is material density.
     Rs : float
-        Radius of the spherical object (meters).
+        Radius of the spherical object in m.
     phi : float
-        Porosity (dimensionless).
+        Macroscopic porosity
     planet : str
         Name of the planet (e.g., 'Earth', 'Mars', 'Moon', etc.).
     
@@ -163,7 +175,7 @@ def make_Fmech2(depth, rho, Rs, phi, planet):
     g = planet_gravity.get(planet, 9.80665)
     
     # Calculate the mechanical force
-    Fmech = 2.0 * np.pi * rho * g * depth * (Rs**2) / (np.sqrt(6.0) * (1.0 - phi))
+    Fmech = 2.0 * np.pi * rho_e * g * depth * (Rs**2) / (np.sqrt(6.0) * (1.0 - phi))
     
     return Fmech
 
@@ -310,28 +322,28 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     poissons = props["poissons"]
     youngs = props["youngs"]
     k_s_func = props["k_s_func"]
-    rho_bulk = props["rho_bulk"]
+    rho_b = props["rho_bulk"]
 
     k_s = k_s_func(T)
     
     # Consider macroporosity
-    rho = rho_bulk * (1.0 - phi)
+    rho_e = rho_b * (1.0 - phi)
 
     # Calculate the mechanical force (lithostatic pressure)
-    Fmech2 = make_Fmech2(depth, rho, sphere_diam / 2.0, phi, planet)
+    Fmech2 = make_Fmech2(depth, rho_e, sphere_diam / 2.0, phi, planet)
     rc_sakatani = rc_jkr(sphere_diam / 2.0, Fmech2, surfenergy, poissons, youngs) * rc_factor
     
     if rc_fixed:
         rc_sakatani = rc_fixed
     if rc_fixed_ratio:
-        # rc_jkr(sphere_diam/2.0) ?
         rc_sakatani = (sphere_diam/2.0) * rc_fixed_ratio
 
     gamma = rc_sakatani / sphere_diam
     
-    # TODO: Check
+    # The same as Cambioni+2021
     if zetaxi:
         xi = 0.12
+    
 
     # Solid conductivity calculations
     Hs = ((4.0 * np.pi / 3.0) ** (1.0 / 3.0)) * (sphere_diam / 2.0) * k_s
@@ -368,6 +380,7 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     fk_predicted = a1 * np.arctan(a2 * (1 / Lambda_s) ** a3) + a4
 
     # TODO: Ensure fk <= 1?
+    # This seems always 1
     fk_predicted = np.where(fk_predicted > 1.0, 1.0, fk_predicted)
     #print(fk_predicted)
 
@@ -395,28 +408,29 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     out["k_rad_GB"] = k_rad_GB
     out["rc"] = rc
     out["Nc"] = Nc
-    out["rho"] = rho
+    out["rho_e"] = rho_e
     out["fk_predicted"] = fk_predicted
     out["zeta"] = zeta
     out["xi"] = xi
     return out
 
 
-def calc_TIth(TI_rock, T_typical, obj):
-    """
-    Calculate threshold of thermal inertia of regolith and rock
-    (gamma_c in Cambioni+2021).
+def calc_TIth(TI_rock, T_typical, obj, phi):
+    """Calculate threshold of thermal inertia of regolith and rock, gamma_c.
+
     gamma_c is defined as thermal inertia when D_p = l_s,
     where D_p is particle diameter and l_s is thermal skin depth.
 
     Parameters
     ----------
     TI_rock : float
-        thermal inertia of rock
+        thermal inertia of rock in tiu
     T_typical : float
         typical temperature in K
     obj : str
         target name (e.g., Bennu, Eros)
+    phi: float
+        Macroscopic porosity
 
     Returns
     -------
@@ -426,27 +440,26 @@ def calc_TIth(TI_rock, T_typical, obj):
         threshold of thermal inertia of regolith and rock
     """
 
-    # To be updated
     # Fixed parameters in Cambioni+2021 =======================================
-
- 
-    # emissivity 
-    emiss = 0.95
     # Non-isothermal correction factor
     fk = 1
     # Relationship between and k (conductivity) and phi 
     # "flynn" is used in Cambioni+2021
     model = "flynn"
+    # Fixed parameters in Cambioni+2021 =======================================
+
 
     if obj == "Bennu":
         # Parameters in Cambioni+2021
+        # Emissivity (fixed to 0.95 for Bennu in Cambioni+2021)
+        emiss = 0.95
+
         # Rotation period in hr
         rotP_hr = 4.296057
         rotP_s = rotP_hr*3600.
 
         # Macroporosity
-        # Reference
-        phi = 0.4
+        # 0.15, 0.40 (nominal), and 0.60 are used.
 
         # Grain density of CM meteorites in kg/m^3
         rho_s = 2920
@@ -458,23 +471,25 @@ def calc_TIth(TI_rock, T_typical, obj):
         # as a function of (T_typical)
         # So constant value cannot reproduce the 
         # same result as Cambioni+2021
+        # T ~ 300 K 
         c_p = 750.0
 
 
     elif obj =="Eros":
+        # Emissivity (The same as TPM in Beniyama+)
+        emiss = 0.90
+
         # Rotation period in hr
         rotP_hr = 5.27
         rotP_s = rotP_hr*3600.
 
         # Macroporosity
-        # TODO: check
         # Wilkison+2002, Icarus, 155, 94
         # best estimated to be 20%
-        phi = 0.2
+        #phi = 0.2
 
         # Grain density of ordinary meteorites in kg/m^3
         # From table 1 of Macke et al. 2019, MPS, 54, 2729.
-        # TODO: check
         rho_s = 3600
 
         # At Eros's mean "GLOBAL?" diurnal temperature (from Figure 4 of Macke+2019, MPS, 54, 2729.)
@@ -489,15 +504,21 @@ def calc_TIth(TI_rock, T_typical, obj):
     xi = 0.12
 
     # Particle diameter array from 100 microns to 15 cm
-    D_arr = np.linspace(0.200e-3, 0.150e-2, 150)
+    # in m
+    #D_arr = np.linspace(0.100e-3, 0.150e-2, 150)
+    D_arr = np.linspace(100e-6, 150e-3, 10000)
 
     # Calculate k_m (conductivity) and rho (material density of rock fragments) based on TIrock
-    result = calc_prop(TI_rock, model=model, specific_heat=c_p, grain_density=rho_s, rotP_hr=rotP_hr)  
-    k_m, rho_m = result["k"], result["rho"]
+    result = calc_prop(
+        TI_rock, model=model, specific_heat=c_p, rho_s=rho_s, rotP_hr=rotP_hr, phi=phi)  
+    # rho_b: Bulk density
+    k_m, rho_b = result["k"], result["rho_b"]
+    # rho_e: Effective bulk density
+    rho_e = rho_b * (1-phi)
 
     # Create lookup table of regolith conductivity vs particle size
     out_keff = keff(
-        D_arr, 0.01, 10.0, phi, T_typical, 1.0e-10, emiss, (1.0 - phi) * rho_m, 
+        D_arr, 0.01, 10.0, phi, T_typical, 1.0e-10, emiss, rho_e, 
         "N2", sample="tagish", planet=obj, k_const=k_m, new_fk=1, zetaxi=1, surfenergy=0.032) 
     
     k_s_sakatani   = out_keff["k_s_sakatani"]
@@ -511,14 +532,14 @@ def calc_TIth(TI_rock, T_typical, obj):
         k_out = k_s_sakatani + k_rad_sakatani
 
     # Calculate skin depth using regolith conductivity vs diameter
-    skin = np.sqrt(k_out * rotP_s / (rho_m * (1.0 - phi) * c_p * np.pi))
+    skin = np.sqrt(k_out * rotP_s / (rho_e * c_p * np.pi))
 
     # Find the intersection point of skin depth and particle size curves
     mindifpos = np.argmin(np.abs(D_arr - skin))  
     # Find the closest value of D to skin depth
     Dth = D_arr[mindifpos]
     k_out = k_out[mindifpos]
-    TIth = np.sqrt(k_out * rho_m * (1.0 - phi) * c_p)
+    TIth = np.sqrt(k_out * c_p * rho_e)
 
     return Dth, TIth
 
@@ -543,27 +564,33 @@ if __name__ == "__main__":
         obj = args.obj
         T_typical = args.T_typical
         TIrock_list = np.arange(25, 2500, 25)
-        TIth_list = []
 
-        print("  Plot TIrock vs. TIth : {args.action}")
-        print(f"  Object: {obj}")
+        print(f"  Plot TIrock vs. TIth")
+        print(f"  Object: {obj}, T={T_typical} [K]")
         print(f"  Temperature: {T_typical}")
-
-        # Get threshold
-        for TI_rock in TIrock_list:
-            _, TIth = calc_TIth(TI_rock, T_typical, obj)
-            print(TIth)
-            TIth_list.append(TIth)
 
         fig = plt.figure(figsize=(8, 6))
         ax = fig.add_axes([0.15, 0.15, 0.7, 0.7])
-
         ax.set_xlabel("TI of rock [tiu]")
         ax.set_ylabel("TI cutoff [tiu]")
-        ax.scatter(TIrock_list, TIth_list, color="black")
         ax.set_xscale("log")
+        ax.set_title(f"{obj}, T={T_typical} [K]")
+        ax.set_ylim([0, 200])
 
-        plt.savefig("TIrock_vs_TIth.jpg")
+        phi_list = [0.15, 0.40, 0.60]
+        ls_list = ["solid", "dashed", "dotted"]
+        col_list = ["black", "red", "blue"]
+        for idx, phi in enumerate(phi_list):
+            TIth_list = []
+            for TI_rock in TIrock_list:
+                _, TIth = calc_TIth(TI_rock, T_typical, obj, phi)
+                TIth_list.append(TIth)
+
+            ax.plot(
+                TIrock_list, TIth_list, ls=ls_list[idx], color=col_list[idx], label=f"$\phi={phi}$")
+
+        ax.legend(loc="lower right")
+        plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
     
     # For future update
     elif args.action == "aaa":

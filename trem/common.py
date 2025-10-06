@@ -37,6 +37,7 @@ The default value is None for all queries, which corresponds to
            J.B. confirmed that the generated obs file with light time correction
            matched that in DAFEED with an accuracy of 0.01 s.
 """
+import time
 import numpy as np
 from astroquery.jplhorizons import Horizons
 from astropy.constants import c, au
@@ -260,3 +261,15 @@ def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):
                 f_obs.write(f" {w} {flux} {fluxerr} {cflag}\n")
 
             f_obs.write("\n")
+
+def elapsedtime(t0):
+    """Output elapsed time.
+    
+    Parameter
+    ---------
+    t0 : float
+        Time zero
+    """
+    t1 = time.time() 
+    elapsed_time = t1 - t0
+    print(f"  Elapsed time：{elapsed_time:.2f} s")

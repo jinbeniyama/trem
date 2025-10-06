@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Plot 3-d color-map with (x, y, z) = (TI of rocks, TI of regolith, Hapke angle)
@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from tpmwrapper.common import calc_confidence_chi2
+from trem.emittance.common_emittance import calc_confidence_chi2
 
 
 if __name__ == "__main__":
@@ -44,6 +44,7 @@ if __name__ == "__main__":
     df = pd.read_csv(args.res, sep=" ")
     N_all = len(df)
     title = f"TI_th = {args.TI_thresh}"
+
 
     dof = args.dof
     # Calculate reduced chi2 
@@ -123,7 +124,7 @@ if __name__ == "__main__":
     # Add minimum value
 
     label_min = (
-            f"Minimum chi2 {chi2_min:.2f} at (TIrego, TIrock, Htheta, alpha) = ({TIrego_min:.1f}, {TIrock_min:.1f}, {Htheta_min:.1f}, {alpha_min:.2f})")
+            f"Minimum chi2 {chi2_min:.4f} at (TIrego, TIrock, Htheta, alpha) = ({TIrego_min:.2f}, {TIrock_min:.2f}, {Htheta_min:.2f}, {alpha_min:.2f})")
     ax.scatter(
         df.loc[idx_min, key_x], df.loc[idx_min, key_y], df.loc[idx_min, key_z], 
         color="red", marker="x", s=100, label=label_min)

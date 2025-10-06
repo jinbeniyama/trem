@@ -156,7 +156,7 @@ def plot_flux(dfs, fixscale=False, y1range=None, out=None):
             if f_obs > 0:
                 res = (f_obs - f_model)/ferr_obs
                 chi2 += res**2
-            print(f"  f_obs, f_model, res = {f_obs}+-{ferr_obs}, {f_model}, {res}")
+            print(f"  {idx_row+1}/{len(df)} f_obs, f_model, res = {f_obs:.5f}+-{ferr_obs:.5f}, {f_model:.5f}, {res:.5f}")
 
             if idx_row == (len(df)-1):
                 label = f"Idx {idx_df}: chi2 = {chi2:.3f}"
@@ -285,6 +285,25 @@ def calc_chi2(df):
     return chi2
 
 
+def calc_chi2_numpy(f_obs, f_model, ferr, scalefactor):
+    """
+    Calculate chi2 with F_obs, Ferr_obs, F_model, and scale factor.
+    Note: 
+    The output chi2 could be different from that in the output of TPM.
+    This is because runtpm ignores negative fluxes. J.B. thinks negative 
+    fluxes are still informative if they are with large errorbars.
+
+    Return
+    ------
+    chi2 : float
+        calculated chi-square
+    """
+    model_scaled = scalefactor**2 * f_model
+    diff = (f_obs - model_scaled)**2 / ferr**2
+    chi2 = np.sum(diff)
+    return chi2
+
+
 def calc_confidence_chi2(paper, chi2_min, dof, n, reduce):
     """
     Calculate condifence levels.
@@ -344,7 +363,91 @@ def calc_confidence_chi2(paper, chi2_min, dof, n, reduce):
     return chi2_sigma
 
 
-def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
+def extract_unique_epoch(df, key_t):
+    """Extract unique epoch in the dataframe.
+
+    The dataframes of photometry which do not need scale factors 
+    are also returned.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        input dataframe
+    key_t : str
+        keyword for epoch 
+
+    Returns
+    -------
+    t_unique_list : array-like
+        list of unique epoch
+    df_phot_list : array-like
+        list of data frames of photometry
+    """
+
+    # Extract observation time and N
+    t_list = sorted(list(set(df[key_t])))
+    # Time in which scale factor to be introduced
+    # When N == 1 (i.e., photometry), no scale factor is introduced.
+    t_unique_list = []
+    df_phot_list = []
+    for t in t_list:
+        df_t = df[df[key_t] == t]
+        N_t = len(df_t)
+        #print(f"{key_t}={t} N={N_t}")
+        # Do not introduce scale factor when N = 1 (i.e., photometry)
+        if N_t > 1:
+            t_unique_list.append(t)
+        else:
+            # Add into list of updated dataframe
+            df_phot_list.append(df_t)
+
+    return t_unique_list, df_phot_list
+
+
+def introduce_global_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
+    """
+    Introduce global scale factor for all observations.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe
+    key_t : str
+        Keyword for observation time
+    sf0 : float
+        Minimum scale factor
+    sf1 : float
+        Maximum scale factor
+    sfstep : float
+        Step of scale factor
+
+    Return
+    ------
+    df : pandas.DataFrame
+        Output dataframe with new scale factors
+    """
+    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+    f_obs = df["f_obs"].values
+    f_model = df["f_model"].values
+    ferr_obs = df["ferr_obs"].values
+
+    # Calc. chi2
+    # shape (N_sf, 1)
+    sf_array = sf_list[:, None]  
+    residual = (f_obs - (sf_array**2) * f_model) / ferr_obs
+    chi2_array = np.sum(residual**2, axis=1)
+
+    best_idx = np.argmin(chi2_array)
+    best_sf = sf_list[best_idx]
+    print(f"Best scale factors: {best_sf:.2f}")
+    # Update scale factor
+    df["scalefactor"] = best_sf
+
+    return df
+
+# Probably useless. To be removed.
+def introduce_var_scalefactor(df, key_t="jd", sf0=0.90, sf1=1.1, sfstep=0.01):
     """
     Introduce variable scale factors per observation.
 
@@ -366,33 +469,17 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     df1 : pandas.DataFrame
         output dataframe with new scale factors
     """
-
-    # Updated dataframe
-    df1_list = []
-
-    # Extract observation time and N
-    t_list = list(set(df[key_t]))
-    # Time in which scale factor to be introduced
-    t_cor_list = []
-    for t in t_list:
-        df_t = df[df[key_t] == t]
-        N_t = len(df_t)
-        #print(f"{key_t}={t} N={N_t}")
-        # Do not introduce scale factor when N = 1 (i.e., photometry)
-        if N_t > 1:
-            t_cor_list.append(t)
-        else:
-            # Add into list of updated dataframe
-            df1_list.append(df_t)
+    # Updated dataframe (incl. photometry at the moment)
+    t_cor_list, df1_list = extract_unique_epoch(df, key_t)
 
     N_sf = len(t_cor_list)
-    print(f"  Number of scale factors = {N_sf}")
+    print(f"      Number of scale factors = {N_sf}")
      
     # Determine scale factor
     # List of scale factor to be searched
     sf_list = np.arange(sf0, sf1+sfstep, sfstep)
     for idx_t, t_cor in enumerate(t_cor_list):
-        df_t = df[df[key_t] == t_cor]
+        df_t = df[df[key_t] == t_cor].copy()
 
         # Minimize chi2
         for idx_sf, sf in enumerate(sf_list):
@@ -426,13 +513,58 @@ def introduce_var_scalefactor(df, key_t="jd", sf0=0.80, sf1=1.2, sfstep=0.01):
     df1 = df1.sort_values(by=[key_t])
     return df1
 
-    # 2. This is faster =======================================================
-    df_blend = df1.copy()
-    df_blend["f_model"] = (
-        alpha*df1["scalefactor"]**2*df1["f_model"] + 
-        (1-alpha)*df2["scalefactor"]**2*df2["f_model"])
-    # This is a dummy
-    df_blend["scalefactor"] = 1
-    # 2. This is faster. =======================================================
 
-    return df
+def introduce_var_scalefactor_fast(df, key_t="jd", sf0=0.90, sf1=1.1, sfstep=0.01):
+    """
+    Faster version of introduce_var_scalefactor.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe
+    key_t : str
+        Keyword for observation time
+    sf0 : float
+        Minimum scale factor
+    sf1 : float
+        Maximum scale factor
+    sfstep : float
+        Step of scale factor
+
+    Return
+    ------
+    df1 : pandas.DataFrame
+        Output dataframe with new scale factors
+    """
+    df1_list = []
+    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+
+    # Group by time (epoch)
+    for t, df_t in df.groupby(key_t):
+        if len(df_t) == 1:
+            df1_list.append(df_t)
+            continue
+
+        df_t = df_t.copy()
+        f_obs = df_t["f_obs"].values
+        f_model = df_t["f_model"].values
+        ferr_obs = df_t["ferr_obs"].values
+
+        # Calc. chi2 for all scale factors
+        # shape (N_sf, 1)
+        sf_array = sf_list[:, None]  
+        residual = (f_obs - (sf_array**2) * f_model) / ferr_obs
+        chi2_array = np.sum(residual**2, axis=1)
+
+        best_idx = np.argmin(chi2_array)
+        best_sf = sf_list[best_idx]
+        df_t["scalefactor"] = best_sf
+
+        if "diff" in df_t.columns:
+            df_t = df_t.drop(columns=["diff"])
+
+        df1_list.append(df_t)
+
+    df1 = pd.concat(df1_list)
+    df1 = df1.sort_values(by=[key_t])
+    return df1

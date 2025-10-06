@@ -11,7 +11,7 @@ Under heavy development by J.B. and K.Y.
 
 ## Structure
 ```
-retm_or_trem/
+trem/
   README.md
   c/ # TPM code (in prep.)
   docs/
