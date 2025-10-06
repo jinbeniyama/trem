@@ -21,6 +21,7 @@ def plot_hist(df_list, key, label_list, l=0.25, u=0.75, bins=30, out="hist.jpg")
             ax.hist(df[key], histtype="step", density=True, bins=bins, label=label)
     ax.legend()
     ax.set_xlabel(key)
+    ax.set_yscale("log")
     ax.set_ylabel("Normalized counts")
 
     plt.savefig(out)
@@ -32,8 +33,8 @@ if __name__ == "__main__":
         "res", type=str,
         help="Result of TPM with chi2.")
     parser.add_argument(
-        "-x", type=str, default="Htheta", 
-        help="x axis of the plot (A, TI, TIrego etc.)")
+        "-x", type=str, default="TIrock", 
+        help="x axis of the plot (A, TIrock, TIrego Htheta, etc.)")
     parser.add_argument(
         "--dof", type=int, default=1,
         help="Degree of freedom")
@@ -81,30 +82,4 @@ if __name__ == "__main__":
     print(f"V17, 3sigma, N={len(df_V17_3)}")
     
     # All solution
-    plot_hist([df_P14_1, df_P14_3, df_V17_1, df_V17_3], "TIrock", ["P14, 1sigma", "P14, 3sigma", "V17, 1sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30, out=args.out)
-    
-    # Only large Htheta
-    #H_min = 25
-    
-    #df_P14_1_H = df_P14_1[(df_P14_1["Htheta"] > H_min)]
-    #df_P14_1_H = df_P14_1_H.reset_index(drop=True)
-    #
-    #df_P14_3_H = df_P14_3[(df_P14_3["Htheta"] > H_min)]
-    #df_P14_3_H = df_P14_3_H.reset_index(drop=True)
-    #
-    #df_V17_1_H = df_V17_1[(df_V17_1["Htheta"] > H_min)]
-    #df_V17_1_H = df_V17_1_H.reset_index(drop=True)
-    #
-    #df_V17_3_H = df_V17_3[(df_V17_3["Htheta"] > H_min)]
-    #df_V17_3_H = df_V17_3_H.reset_index(drop=True)
-    #
-    #
-    #plot_hist([df_P14_1_H, df_P14_3, df_V17_1, df_V17_3], "TIrock", ["P14, 1sigma", "P14, 3sigma", "V17, 1sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_P14_1_H, df_P14_3, df_V17_1, df_V17_3], "alpha", ["P14, 1sigma", "P14, 3sigma", "V17, 1sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_P14_1, df_P14_3, df_V17_1, df_V17_3], "Htheta", ["P14, 1sigma", "P14, 3sigma", "V17, 3sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_P14_1, df_P14_3, df_V17_1, df_V17_3], "TIrego", ["P14, 1sigma", "P14, 3sigma", "V17, 3sigma", "V17, 3 sigma"])
-    #plot_hist([df_P14_1, df_P14_3, df_V17_1, df_V17_3], "alpha", ["P14, 1sigma", "P14, 3sigma", "V17, 1sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_P14_1, df_P14_3], "alpha", ["P14, 1sigma", "P14, 3sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_V17_1, df_V17_3], "alpha", ["V17, 1sigma", "V17, 3sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_P14_1, df_P14_3], "Htheta", ["P14, 1sigma", "P14, 3sigma"], l=0.25, u=0.75, bins=30)
-    #plot_hist([df_V17_1, df_V17_3], "Htheta", ["V17, 1sigma", "V17, 3sigma"], l=0.25, u=0.75, bins=30)
+    plot_hist([df_P14_1, df_P14_3, df_V17_1, df_V17_3], args.x, ["P14, 1sigma", "P14, 3sigma", "V17, 1sigma", "V17, 3 sigma"], l=0.25, u=0.75, bins=30, out=args.out)

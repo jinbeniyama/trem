@@ -18,14 +18,15 @@ bond albedo, A, is always fixed?? For Eros, yes.
 """
 import os 
 import sys
+import time
 from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
 
+from trem.common import elapsedtime
 from trem.emittance.common_emittance import (
-    extract_flux, crater2Htheta, extract_bestparam, introduce_var_scalefactor,
-    extract_unique_epoch)
-from trem.emittance.common_dualcomponent import search_regolith_abundance
+    extract_bestparam, extract_unique_epoch)
+from trem.emittance.common_dualcomponent import search_regolith_abundance, blend_flux_numpy
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
 
@@ -38,7 +39,8 @@ if __name__ == "__main__":
         help="Results of NN")
     parser.add_argument(
         "--TI0", type=float, default=150,
-        help="Initial thermal inertia of rock to determine threshold of TI of regolith and rocks")
+        help="Initial thermal inertia of rock to determine "
+        "threshold of TI of regolith and rocks")
     parser.add_argument(
         "--TI_thresh", type=float, default=False,
         help="Thermal inertia cutoff")
@@ -51,6 +53,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--chi2_min0", type=float, default=200000,
         help="Initial minimum chi2 used to find the best alpha")
+    parser.add_argument(
+        "--phi", type=float, default=0.20,
+        help="Macroporosity")
     parser.add_argument(
         "--astep", type=float, default=0.1,
         help="Step of regolith abundance")
@@ -74,6 +79,8 @@ if __name__ == "__main__":
         help="Directory for output file")
     args = parser.parse_args()
    
+    t0 = time.time() 
+
     # Parse arguments =========================================================
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
@@ -97,12 +104,13 @@ if __name__ == "__main__":
     df_NN["scalefactor"] = 1
     Htheta_list = sorted(list(set(df_NN["Htheta"])))
     TI_list= sorted(list(set(df_NN["TI"])))
+    # Number of Htheta (roughness) and TI (thermal inertia)
+    N_Htheta = len(Htheta_list)
+    N_TI = len(TI_list)
+    # Just to count the number of data points
     df_temp = df_NN[
         (df_NN["Htheta"] == Htheta_list[0]) & (df_NN["TI"] == TI_list[0])
         ]
-    N_Htheta = len(Htheta_list)
-    N_TI = len(TI_list)
-
     # Number of data points
     N_data = len(df_temp)
 
@@ -117,9 +125,6 @@ if __name__ == "__main__":
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
     print(f"List of regolith abundance: {alpha_list}")
     print("")
-    
-
-
 
     if args.TI_thresh:
         TI_thresh = args.TI_thresh
@@ -150,7 +155,7 @@ if __name__ == "__main__":
             T_typical = args.T_typical
             # Determine a TI_threshold with TI_rock
             # (See trem/emittance/util_Cambioni2021.py for detail)
-            _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj)
+            _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj, args.phi)
 
             # Make lists of TIrock and TIrego with a given TI_thresh
             TIrock_list = [x for x in TI_list if x >= TI_thresh]
@@ -176,6 +181,7 @@ if __name__ == "__main__":
             # Loop for Htheta (i.e., roughness)
             for idx_Htheta, Htheta, in enumerate(Htheta_list):
                 print(f"  Htheta = {Htheta:.2f}")
+                elapsedtime(t0)
                 # Loop for TI of regolith
                 for idx_TIrego, TIrego in enumerate(TIrego_list):
                     # Extract fluxes of regolith
@@ -206,7 +212,7 @@ if __name__ == "__main__":
             # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
             
             # Determine the best fit parameters (TI_rock, TI_rego, Htheta)
-            # Note: alpha is already fit)
+            # Note: alpha is already fit
             key_chi2 = "chi2"
             # Use only TIrock to check the convergence
             params = ["TIrock"]
@@ -240,15 +246,16 @@ if __name__ == "__main__":
         # Note: This scale factor is applied for both spec. and phot.
         column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
     elif scale_per_obs:
-        # Note: This scale factor is only applied for spectroscopy.
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
-    df = pd.DataFrame(columns=column)
+        pass
+
 
     # Loop for Htheta (i.e., roughness)
     # (Maybe we can skip this 2nd calculation......, but I have no idea.)
-
+    
+    rows_all = []
     for idx_Htheta, Htheta, in enumerate(Htheta_list):
         print(f"  Htheta = {Htheta:.2f}")
+        elapsedtime(t0)
 
         # Loop for TI of regolith
         for idx_TIrego, TIrego in enumerate(TIrego_list):
@@ -271,20 +278,25 @@ if __name__ == "__main__":
                     alpha_arr, chi2_arr = search_regolith_abundance(
                         df_rego, df_rock, alpha_list, chi2_min0, False)
 
+                    # Save info.
+                    rows = [
+                        [Htheta, TIrego, TIrock, a, c]
+                        for a, c in zip(alpha_arr, chi2_arr)
+                    ]
+                    rows_all.extend(rows)
+
                 # w/ global scale factors
                 elif scale_all:
-                    # Combine two dataframe and return only alpha which gives
-                    # the minimum chi2
-                    # Note: Results are already fit by alpha
-                    # Note: Scale factors are introduced.
-                    #       Results are already fit by the scale factors.
+                    # Combine two dataframe and return chi-squared values 
 
                     # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
+                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
                     sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
 
                     key_t = "jd"
                     t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
+                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
                     for sf in sf_list:
                         # Introduce scale factors for both spec. and phot.
@@ -296,44 +308,89 @@ if __name__ == "__main__":
                         alpha_arr, chi2_arr = search_regolith_abundance(
                             df_rego, df_rock, alpha_list, chi2_min0, False)
                         # Save info.
-                        for a, c in zip(alpha_arr, chi2_arr):
-                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf:.3f}")
-                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+                        rows = [
+                            [Htheta, TIrego, TIrock, a, c, sf]
+                            for a, c in zip(alpha_arr, chi2_arr)
+                        ]
+                        rows_all.extend(rows)
 
                 # w/ scale factors for spectra (not for photometry)
                 elif scale_per_obs:
-
-                    assert False, "in prep."
-                    # Combine two dataframe and return only alpha which gives
-                    # the minimum chi2
-                    # Note: Results are already fit by alpha
+                    # Combine two dataframe and return chi-squared values 
                     # Note: Scale factors are introduced.
-                    #       Results are already fit by the scale factors.
+                    #       Results are already fit by the scale factors per obs.
 
                     # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.80, 1.20, 0.01
-                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
+                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
+                    sf_list = np.arange(sf0, sf1, sfstep)
 
-                    #N_epoch_rego = len(list(set(df_rego["jd"])))
-                    #N_epoch_rock = len(list(set(df_rock["jd"])))
-                    #print(f"N_epoch in df_rego: {N_epoch_rego}")
-                   # print(f"N_epoch in df_rock: {N_epoch_rock}")
-                    # Either is fine (df_rego or df_rock)
                     key_t = "jd"
-                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
+                    t_unique_list, dfs_phot = extract_unique_epoch(df_rego, key_t)
+                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
+                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
 
-                    for sf in sf_list:
-                        # Introduce scale factors only for photometry
-                        df_rego.loc[df_rego["jd"].isin(t_unique_list), "scalefactor"] = sf
-                        df_rock.loc[df_rock["jd"].isin(t_unique_list), "scalefactor"] = sf
+                    # Search best scale parameters for each alpha
+                    for al in alpha_list:
 
-                        sf_list1 = list(set(df_rego.scalefactor))
-                        #print(f"  Unique scale factors: {sf_list1}")
-                        alpha_arr, chi2_arr = search_regolith_abundance(
-                            df_rego, df_rock, alpha_list, chi2_min0, False)
+                        sf_epoch_list = []
+                        for epoch in t_unique_list: 
+                            df_rego_epoch = df_rego[df_rego["jd"] == epoch]
+                            df_rock_epoch = df_rock[df_rock["jd"] == epoch]
+                            
+                            # Fit scale factor here
+                            for idx_sf, sf in enumerate(sf_list):
+                                # Introduce scale factors only for photometry
+                                df_rego_epoch.loc[:, "scalefactor"] = sf
+                                df_rock_epoch.loc[:, "scalefactor"] = sf
+
+                                f1 = df_rego_epoch["f_model"].to_numpy()
+                                f2 = df_rock_epoch["f_model"].to_numpy()
+                                f_obs = df_rego_epoch["f_obs"].to_numpy()
+                                ferr_obs = df_rego_epoch["ferr_obs"].to_numpy()
+
+                                # Blended model flux for a combination of 
+                                # (epoch, scale factor, alpha)
+                                f_blend = blend_flux_numpy(f1, sf, f2, sf, al)
+
+                                # Calculate chi2 of blended flux
+                                diff = (f_obs - f_blend)**2 / ferr_obs**2
+                                chi2 = np.sum(diff)
+                                if idx_sf == 0:
+                                    chi2_min_epoch_sf = chi2
+                                    sf_epoch = sf
+                                else:
+                                    if chi2 < chi2_min_epoch_sf:
+                                        chi2_min_epoch_sf = chi2
+                                        sf_epoch = sf
+                            #print(f"Best sf at {epoch} with alpha of {al}: {sf_epoch}")
+                            # Update scale factors
+                            df_rego.loc[df_rego["jd"]==epoch, "scalefactor"] = sf_epoch
+                            df_rock.loc[df_rock["jd"]==epoch, "scalefactor"] = sf_epoch
+
+                            sf_epoch_list.append(sf_epoch)
+
+                        f1 = df_rego["f_model"].to_numpy()
+                        sf_per_obs = df_rego["scalefactor"].to_numpy()
+                        f2 = df_rock["f_model"].to_numpy()
+                        f_obs = df_rock["f_obs"].to_numpy()
+                        ferr_obs = df_rock["ferr_obs"].to_numpy()
+                        f_blend = blend_flux_numpy(f1, sf_per_obs, f2, sf_per_obs, al)
+
+                        # Calculate chi2 of blended flux
+                        diff = (f_obs - f_blend)**2 / ferr_obs**2
+                        chi2 = np.sum(diff)
+
                         # Save info.
-                        for a, c in zip(alpha_arr, chi2_arr):
-                            print(f"  -> alpha, chi2, sf = {a:.2f}, {c:.2f}, {sf}")
-                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c, sf]
+                        # sf_epoch_list: best scale parameters for each epoch
+                        rows = [[Htheta, TIrego, TIrock, al, chi2] + sf_epoch_list]
+                        rows_all.extend(rows)
+    if scale_per_obs:
+        # Save all scale factors.
+        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+        for idx, epoch in enumerate(t_unique_list): 
+            column.append(f"scalefactor{idx+1}")
 
-    df.to_csv(args.out, sep=" ", index=False)
+    df = pd.DataFrame(rows_all, columns=column)
+
+    df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
+    elapsedtime(t0)

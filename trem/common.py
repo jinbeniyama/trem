@@ -37,6 +37,7 @@ The default value is None for all queries, which corresponds to
            J.B. confirmed that the generated obs file with light time correction
            matched that in DAFEED with an accuracy of 0.01 s.
 """
+import time
 import numpy as np
 from astroquery.jplhorizons import Horizons
 from astropy.constants import c, au
@@ -50,7 +51,7 @@ mymark = ["o", "^", "s", "D", "*", "v", "<", ">", "h", "H"]
 mymark = mymark*500
 
 
-def make_ephemfile(asteroid, df, out, warmuptime_day=30):
+def make_ephemfile(asteroid, df, out, warmuptime_day=30, output_temp=None):
     """
     Make ephem file for TPM.
     Light time correction is unnecessary.
@@ -65,6 +66,8 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
         output ephem filename
     warmuptime_day : float, optional
         time for warming up in day
+    output_temp : array-like, optional
+        Output temperature map at this epoch
     """
     # Light-time correction is needless! (private com. with Marco DELBO, July 19 2024)
 
@@ -130,7 +133,7 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
             t0 = d0 - margin0
             t1 = d1 + margin1
 
-            d_list = np.arange(t0, t1, 1)
+            d_list = np.arange(t0, t1+1, 1)
             for idx, d in enumerate(d_list):
                 # Location of @10 means Sun body center (=None) for vectors queries
                 # (not solar system barycenter, @0, @ssb).
@@ -148,7 +151,11 @@ def make_ephemfile(asteroid, df, out, warmuptime_day=30):
                 if (idx == len(d_list)-1):
                     f_eph.write(f"{d} {x_S} {y_S} {z_S} 1\n")
                 else:
-                    f_eph.write(f"{d} {x_S} {y_S} {z_S}\n")
+                    # Output temperature
+                    if output_temp == d:
+                        f_eph.write(f"{d} {x_S} {y_S} {z_S} 4\n")
+                    else:
+                        f_eph.write(f"{d} {x_S} {y_S} {z_S}\n")
      
 
 def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):
@@ -254,3 +261,15 @@ def make_obsfile(asteroid, df, out, lccor=False, rmnegativeflux=False):
                 f_obs.write(f" {w} {flux} {fluxerr} {cflag}\n")
 
             f_obs.write("\n")
+
+def elapsedtime(t0):
+    """Output elapsed time.
+    
+    Parameter
+    ---------
+    t0 : float
+        Time zero
+    """
+    t1 = time.time() 
+    elapsed_time = t1 - t0
+    print(f"  Elapsed time：{elapsed_time:.2f} s")

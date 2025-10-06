@@ -50,6 +50,9 @@ if __name__ == "__main__":
         "--fixscale", action="store_true", default=False,
         help="Fix scale factor to 1.")
     parser.add_argument(
+        "--nsigma", type=float, default=1.0,
+        help="n-sigma uncertainty")
+    parser.add_argument(
         "--scale_all", action="store_true", default=False,
         help="Use global scale factor")
     parser.add_argument(
@@ -64,6 +67,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--paper", type=str, default="P14",
         help="P14 or V17, type of uncertainty")
+    parser.add_argument(
+        "--nogrid", action="store_true", default=False,
+        help="Do not use grid")
     parser.add_argument(
         "--logx", action="store_true", default=False,
         help="Use log scale in x axis")
@@ -115,6 +121,10 @@ if __name__ == "__main__":
         ]
     # Number of data points
     N_data = len(df_temp)
+
+    # Number of epochs
+    jd_list = sorted(list(set(df_temp["jd"])))
+    print(f"Epoch list N={len(jd_list)}:{jd_list}")
      
 
     # Calculate dof ===========================================================
@@ -134,9 +144,18 @@ if __name__ == "__main__":
     # Plot
     fig = plt.figure(figsize=(12, 6))
     ax = fig.add_axes([0.15, 0.15, 0.55, 0.80])
-    ax.grid(which="both", color="gray",linewidth=0.2)
+    if args.nogrid:
+        pass
+    else:
+        ax.grid(which="both", color="gray",linewidth=0.2)
 
     axin = ax.inset_axes([0.60, 0.50, 0.35, 0.35])
+
+    # For scale factors
+    if scale_per_obs:
+        axsf = fig.add_axes([0.83, 0.13, 0.10, 0.15])
+        axsf.set_xlabel("Scale factor")
+        axsf.set_ylabel("N")
 
     if args.logx:
         ax.set_xscale("log")
@@ -194,6 +213,16 @@ if __name__ == "__main__":
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
+
+        # Save chi2, TI, and Htheta ===========================================
+        if args.out_df:
+            df_out = pd.DataFrame({
+                "chi2": chi2_new_list,
+                "TI": TI_new_list,
+                "Htheta": Htheta_new_list,
+                })
+            out_df = os.path.join(args.outdir, args.out_df)
+            df_out.to_csv(out_df, sep=" ")
     # Calculate chi2 fixing scale factor to 1 =================================
 
 
@@ -241,6 +270,9 @@ if __name__ == "__main__":
 
     # Calculate chi2 with scale factors per observation =======================
     elif scale_per_obs:
+        # Array to save unique scale factors
+        # scale factors are saved as [[sf1, sf2, ..., sf10], [sf1, sf2, ..., sf10]]
+        sf_list = []
         for idx_Htheta, Htheta in enumerate(Htheta_list_sort):
             print(f"    idx_Htheta = {idx_Htheta+1}/{len(Htheta_list_sort)}")
             for idx_TI, TI in enumerate(TI_list_sort):
@@ -274,40 +306,57 @@ if __name__ == "__main__":
                 TI_new_list.append(TI)
                 Htheta_new_list.append(Htheta)
 
+                # Extract unique scale factors
+                # Group by time (epoch)
+                # List to save scale factors for a specific TI and Htheta
+                sf_list_TI_Htheta = []
+                for t, df_t in df_temp.groupby("jd"):
+                    if len(df_t) == 1:
+                        continue
+
+                    df_t = df_t.copy()
+                    sf0 = np.min(df_t.scalefactor)
+                    sf1 = np.max(df_t.scalefactor)
+                    assert sf0 == sf1, "Something wrong in the calculation of scale factors."
+                    sf_list_TI_Htheta.append(sf0)
+                sf_list.append(sf_list_TI_Htheta)
+
         # Add global minimum chi2
         chi2_min = np.min(chi2_new_list)
         # Index of global chi2_min
         idx_min = chi2_new_list.index(min(chi2_new_list))
         chi2_arr = np.array(chi2_new_list)
+
+        # Save chi2, TI, Htheta, and scale factors ============================
+        if args.out_df:
+            df_out = pd.DataFrame({
+                "chi2": chi2_new_list,
+                "TI": TI_new_list,
+                "Htheta": Htheta_new_list,
+                })
+            # Add scale factors
+            N_sf = len(sf_list[0])
+            sf_transposed = list(zip(*sf_list))
+            # Add scale factors
+            for n, sf_values in enumerate(sf_transposed):
+                df_out[f"sf{n+1}"] = sf_values
+            out_df = os.path.join(args.outdir, args.out_df)
+            df_out.to_csv(out_df, sep=" ")
     # Calculate chi2 with scale factors per observation =======================
 
 
-    # Save chi2, TI, and Htheta ===============================================
-    if args.out_df:
-        df_out = pd.DataFrame({
-            "chi2": chi2_new_list,
-            "TI": TI_new_list,
-            "Htheta": Htheta_new_list,
-            })
-        out_df = os.path.join(args.outdir, args.out_df)
-        df_out.to_csv(out_df, sep=" ")
-    # Save chi2, TI, and Htheta ===============================================
     
 
-    # Add 1-sigma, 3-sigma ====================================================
-    chi2_1sigma = calc_confidence_chi2(
-        args.paper, chi2_min, dof, 1, args.reduce)
-    chi2_3sigma = calc_confidence_chi2(
-        args.paper, chi2_min, dof, 3, args.reduce)
+    # Add n-sigma =============================================================
+    nsigma = args.nsigma
+    chi2_nsigma = calc_confidence_chi2(
+        args.paper, chi2_min, dof, nsigma, args.reduce)
     
     for a in [ax, axin]:
         xmin, xmax = a.get_xlim()
         a.hlines(
-            chi2_min + chi2_1sigma, xmin, xmax, ls="dashed", color="black", 
-            label=r"1$\sigma$" + f" ({chi2_1sigma:.2f}) {args.paper}")
-        a.hlines(
-            chi2_min + chi2_3sigma, xmin, xmax, ls="dotted", color="black", 
-            label=r"3$\sigma$" + f" ({chi2_3sigma:.2f}) {args.paper}")
+            chi2_min + chi2_nsigma, xmin, xmax, ls="dashed", color="black", 
+            label=f"{nsigma}" + r"$\sigma$" + f" ({chi2_nsigma:.2f}) {args.paper}")
         a.set_xlim([xmin, xmax])
     # Add 1-sigma, 3-sigma ====================================================
 
@@ -331,18 +380,21 @@ if __name__ == "__main__":
     else:
         assert False, "Not implimented"
 
-    val_arr_sig = val_arr[chi2_arr < chi2_min + chi2_3sigma]
-    val3sigl, val3sigu = np.min(val_arr_sig), np.max(val_arr_sig)
+    val_arr_sig = val_arr[chi2_arr < chi2_min + chi2_nsigma]
+    val_nsigl, val_nsigu = np.min(val_arr_sig), np.max(val_arr_sig)
     text = (
-        f"{val}= ${valbest:.2f}_" + "{" + f"-{valbest-val3sigl:.2f}" + "}^" 
-        "{" + f"+{val3sigu-valbest:.2f}" + "}" + f"$ (N={len(val_arr_sig)})"
+        f"{val}= ${valbest:.2f}_" + "{" + f"-{valbest-val_nsigl:.2f}" + "}^" 
+        "{" + f"+{val_nsigu-valbest:.2f}" + "}" + f"$ (N={len(val_arr_sig)}) ({nsigma}-sigma)"
         )
     axin.text(0.1, 0.80, text, size=12, transform=axin.transAxes)
-    val_0, val_1 = val3sigl*0.8, val3sigu*1.2
-    chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_3sigma)*1.2
+    val_0, val_1 = val_nsigl*0.8, val_nsigu*1.2
+    chi2_0, chi2_1 = chi2_min*0.8, (chi2_min + chi2_nsigma)*1.2
     axin.set_xlim([val_0, val_1])
     axin.set_ylim([chi2_0, chi2_1])
-    
+
+    # Histogram of scale factors
+    if scale_per_obs:
+        axsf.hist(sf_list)
 
     # This adjustment is necessary when logy == True
     _, y1 = ax.get_ylim()

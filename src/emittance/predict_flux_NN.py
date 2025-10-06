@@ -4,7 +4,6 @@
 """
 import os 
 from argparse import ArgumentParser as ap
-import pandas as pd
 import numpy as np
 import keras
 import pickle
@@ -26,9 +25,15 @@ def predict_flux_NN(modeldir, Epoch, wavelength, Gamma, theta):
     # Note 1: Wavelength, Gamma and Theta must be between their min and max values in LUT20250508
     # Note 2: Wavelength, Gamma and Theta must be single-value floats or array of the same length
 
-    # Load the model
-    model = keras.models.load_model(modeldir+'/NN_'+str(Epoch)+'.keras')
-    with open(modeldir+r"/scaler_in_"+str(Epoch)+".pkl", "rb") as input_file:
+    # Load the model 
+    # before 2025-09-13
+    #model = keras.models.load_model(modeldir+'/NN_'+str(Epoch)+'.keras')
+    #with open(modeldir+r"/scaler_in_"+str(Epoch)+".pkl", "rb") as input_file:
+    #    scaler = pickle.load(input_file)
+
+    # after 2025-09-13 (just the filenames are updated)
+    model = keras.models.load_model(modeldir+'/NN_'+str(Epoch))
+    with open(modeldir+r"/scaler_"+str(Epoch)+".pkl", "rb") as input_file:
         scaler = pickle.load(input_file)
 
     # Prepare the input array
@@ -59,34 +64,59 @@ if __name__ == "__main__":
         "modeldir", type=str,
         help="Directory with NN model")
     parser.add_argument(
+        "--TI0", type=float, default=10,
+        help="Minimum TI")
+    parser.add_argument(
+        "--TI1", type=float, default=2500,
+        help="Maximum TI")
+    parser.add_argument(
+        "--TIstep", type=float, default=5,
+        help="Step pf TI")
+    parser.add_argument(
+        "--theta0", type=float, default=0,
+        help="Minimum theta bar")
+    parser.add_argument(
+        "--theta1", type=float, default=60,
+        help="Maximum theta bar")
+    parser.add_argument(
+        "--thetastep", type=float, default=1,
+        help="Step pf theta bar")
+    parser.add_argument(
+        "--notuse", type=float, nargs="*", default=None,
+        help="Epoch not used")
+    parser.add_argument(
         "--outdir", type=str, default="NNprediction",
         help="output file name")
     args = parser.parse_args()
 
     outdir = args.outdir
     if not os.path.isdir(outdir):
-      os.makedirs(outdir)
+        os.makedirs(outdir)
 
     TPM_sims = np.loadtxt(args.lut, delimiter = ',')
     epoch_unique_array = np.unique(TPM_sims[:,5])
+
+    print(f"Unique epochs: N={len(epoch_unique_array)}")
+
+    # Remove useless epochs here
+    if args.notuse:
+        for epoch_notuse in args.notuse:
+            N0 = len(epoch_unique_array) 
+            epoch_unique_array = [x for x in epoch_unique_array if x != epoch_notuse]
+            N1 = len(epoch_unique_array) 
+            if N1-N0 != 0:
+                print(f"Epoch {epoch_notuse} is removed.")
+
+        print(f"  Updated unique epochs: N={len(epoch_unique_array)}")
     
+    # A thermal inertia and a Hapke thetabar.
     # These are just to extract wavelength
-    TI0 = 50
-    theta0 = 26.7
+    line0  = TPM_sims[0]
+    TI0    = line0[0]
+    theta0 = line0[1]
 
-    # TODO: Add these as optional arguments.
-
-    # N = 100 x 60 = 6000
-    # N_TI = 100
-    TI_list = np.logspace(0,np.log10(2500),100)
-    # N_theta = 60
-    theta_list = np.linspace(0,60,60)
-
-    # N = 30 x 20 = 600
-    # N_TI = 30
-    TI_list = np.logspace(0,np.log10(2500),30)
-    # N_theta = 20
-    theta_list = np.linspace(0,60,20)
+    TI_list = np.arange(args.TI0, args.TI1+args.TIstep, args.TIstep)
+    theta_list = np.arange(args.theta0, args.theta1+args.thetastep, args.thetastep)
     
     for i in range(len(epoch_unique_array)):
     
@@ -126,7 +156,7 @@ if __name__ == "__main__":
             f_model,
         ], axis=0)
 
-        outdir = "NNprediction"
+        outdir = args.outdir
         # Save as "LUT_2450991.767627034.npy"
         f_out = f"LUT_{epoch_unique_array[i]}.npy"
         out = os.path.join(outdir, f_out)

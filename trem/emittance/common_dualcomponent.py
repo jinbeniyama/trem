@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Common functions for dual-component TPM.
 """
-from trem.emittance.common_emittance import calc_chi2
+from trem.emittance.common_emittance import calc_chi2, calc_chi2_numpy
 
 
 def blend_flux(df1, df2, alpha):
@@ -28,59 +28,6 @@ def blend_flux(df1, df2, alpha):
     # Sanity check
     assert len(df1) == len(df2), "Check if input dfs are the same dimension!"
     
-    # 1. This is safe but slow, because of the for loop. ======================
-    # Number of data points
-    #N_data = len(df1)
-    #epoch_list, jd_list, w_list = [], [], []
-    #f_obs_list, ferr_obs_list, f_model_list = [], [], []
-    #
-    #for n in range(N_data):
-    #    epoch1    = df1.loc[n, "epoch"]
-    #    jd1       = df1.loc[n, "jd"]
-    #    w1        = df1.loc[n, "w"]
-    #    f_obs1    = df1.loc[n, "f_obs"]
-    #    ferr_obs1 = df1.loc[n, "ferr_obs"]
-    #    f_model1  = df1.loc[n, "f_model"]
-    #    s1        = df1.loc[n, "scalefactor"]
-
-    #    epoch2    = df2.loc[n, "epoch"]
-    #    jd2       = df2.loc[n, "jd"]
-    #    w2        = df2.loc[n, "w"]
-    #    f_obs2    = df2.loc[n, "f_obs"]
-    #    ferr_obs2 = df2.loc[n, "ferr_obs"]
-    #    f_model2  = df2.loc[n, "f_model"]
-    #    s2        = df2.loc[n, "scalefactor"]
-
-    #    # Sanity checks
-    #    assert jd1 == jd2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert w1 == w2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert f_obs1 == f_obs2, "Check if input dfs are made from the TPMs with same obs file."
-    #    assert ferr_obs1 == ferr_obs2, "Check if input dfs are made from the TPMs with same obs file."
-
-    #    # Calculate blended flux
-    #    f_blend = alpha*s1**2*f_model1 + (1 - alpha)*s2**2*f_model2
-
-    #    # Save info.
-    #    epoch_list.append(epoch1)
-    #    jd_list.append(epoch1)
-    #    w_list.append(w1)
-    #    f_obs_list.append(f_obs1)
-    #    ferr_obs_list.append(ferr_obs1)
-    #    f_model_list.append(f_blend)
-    #    
-    ## DataFrame
-    #df_blend = pd.DataFrame({
-    #    "epoch": epoch_list, 
-    #    "jd": jd_list, 
-    #    "w": w_list,
-    #    "f_obs": f_obs_list, 
-    #    "ferr_obs": ferr_obs_list, 
-    #    "f_model": f_model_list, 
-    #    })
-    ## This is a dummy
-    #df_blend["scalefactor"] = 1
-    # 1. This is safe but slow, because of the for loop. ======================
-
     # 2. This is faster =======================================================
     df_blend = df1.copy()
     df_blend["f_model"] = (
@@ -91,6 +38,15 @@ def blend_flux(df1, df2, alpha):
     # 2. This is faster. =======================================================
 
     return df_blend
+
+
+def blend_flux_numpy(f1, s1, f2, s2, alpha):
+    """
+    Blend fluxes if df1 and df2 with alpha.
+      F_blended = alpha*F1*s1^2 + (1 - alpha)*F2*s2^2,
+    where s1 and s2 are scale factors.
+    """
+    return alpha * (s1**2) * f1 + (1 - alpha) * (s2**2) * f2
 
 
 def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=False):
@@ -121,13 +77,29 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
     """
     alpha_arr, chi2_arr = [], []
     
+    f1 = df1["f_model"].to_numpy()
+    s1 = df1["scalefactor"].to_numpy()
+    f2 = df2["f_model"].to_numpy()
+    s2 = df2["scalefactor"].to_numpy()
+    f_obs = df1["f_obs"].to_numpy()
+    ferr_obs = df1["ferr_obs"].to_numpy()
+
     for a in alpha_list:
         # Blend flux as 
         #   F = alpha*F_regolith*s1^2 + (1-alpha)*F_rock*s2^2,
         # where s1 and s2 are scale factors.
-        df_blend = blend_flux(df1, df2, a)
+        ## This is slow
+        #df_blend = blend_flux(df1, df2, a)
+
+        ## This is faster
+        f_blend = blend_flux_numpy(f1, s1, f2, s2, a)
+
         # Calculate chi2 of blended flux
-        chi2 = calc_chi2(df_blend)
+        ## This is slow
+        #chi2 = calc_chi2(df_blend)
+        ## This is faster
+        ## Set global scale factor to 1 (scale factors are alraeady introduced!)
+        chi2 = calc_chi2_numpy(f_obs, f_blend, ferr_obs, 1)
 
         if minonly:
             if chi2 < chi2_min:

@@ -91,7 +91,7 @@ def plot_TIrego_vs_TIrock(df, TIth, H_list, out="out.jpg", vmin=None, vmax=None,
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     
     if out:
-        plt.savefig(out, dpi=300, bbox_inches='tight')
+        plt.savefig(out, dpi=200, bbox_inches='tight')
     plt.close()
 
 
@@ -110,10 +110,10 @@ if __name__ == "__main__":
         "--TIth", type=float, default=1,
         help="Threshold of thermal inertia")
     parser.add_argument(
-        "--vr", type=float, nargs=2, default=None,
+        "--vr", type=float, nargs=2, default=[0, 100],
         help="Value range")
     parser.add_argument(
-        "--out", type=str, default="TIrego_TIrock_Htheta.png",
+        "--out", type=str, default="TIrego_TIrock_Htheta.jpg",
         help="Output file")
     args = parser.parse_args()
    

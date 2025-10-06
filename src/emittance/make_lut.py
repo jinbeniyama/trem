@@ -25,6 +25,11 @@ def parseFile(fname, outfile):
     gammaRho = paramList[3]
     bondA = paramList[4]
 
+    if gammaC == "5156.6":
+        print("gammaC = 5156.6 detected.")
+        print("Manually replace tbar with 90.0.")
+        gammaC = "90.0"
+
     ### extract TPM simualtion fluxes
     r0=0
     rMax = len(data)
@@ -45,6 +50,39 @@ def parseFile(fname, outfile):
             r0=r1+1
 
 
+def check_lut(f):
+    """Check look-up-table.
+
+    Parameter
+    ---------
+    f : str
+        look-up-table
+    """
+    df = pd.read_csv(f, header=None)
+    col = df.columns.tolist()
+
+    assert len(col) == 8, "Check the code"
+
+    print(f"Check {f}")
+
+    # Add columns
+    df.columns = ["TI", "Htheta", "CA", "CR", "A", "jd", "w", "f_model"]
+    col = df.columns.tolist()
+    print(f"columns: {col}")
+
+    jd_list = sorted(list(set(df.jd)))
+    print(f"jd (N={len(jd_list)}): {jd_list}")
+
+    TI_list = sorted(list(set(df.TI)))
+    CA_list = sorted(list(set(df.CA)))
+    CR_list = sorted(list(set(df.CR)))
+    Htheta_list = sorted(list(set(df.Htheta)))
+    print(f"TI (N={len(TI_list)}): {TI_list}")
+    print(f"CA (N={len(CA_list)}): {CA_list}")
+    print(f"CR (N={len(CR_list)}): {CR_list}")
+    print()
+
+
 if __name__ == "__main__":
     parser = ap(
         description="Make look-up-table.")
@@ -60,12 +98,14 @@ if __name__ == "__main__":
     resall = glob.glob(f'{args.res}/tpmout*')
     N_res = len(resall)
     print(f"N_res = {N_res}")
-    assert N_res == 440, "Check TPM results."
     
     outf=open(args.out, "w")
     for fn in resall:
-        try:
-            parseFile(fn,outf)
-        except:
-            print("error on ", fn)
+        parseFile(fn,outf)
     outf.close()
+
+
+    # Check the look-up-table
+    print("")
+    print("Check look-up-table.")
+    check_lut(args.out)
