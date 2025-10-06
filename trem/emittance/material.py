@@ -255,13 +255,13 @@ def get_material_properties(sample, T):
 
 
 # Radiative component of thermal conductivity =================================
-def calc_k_rad_GB(e, diam, T, phi, e1):
+def calc_k_rad_GB(eps, diam, T, phi, e1):
     """
     Calculate the radiative component of regolith conductivity based on the Gundlach & Blum model (2013).
 
     Parameters
     ----------
-    e : float
+    eps : float
         Emissivity of the material
     diam : float
         Diameter of the particle (m?)
@@ -277,17 +277,17 @@ def calc_k_rad_GB(e, diam, T, phi, e1):
     k_rad_GB : float
         Radiative conductivity (W/m·K).
     """
-    k_rad_GB = 8.0 * SB_const * e * (T**3) * e1 * (phi / (1.0 - phi)) * (diam / 2.0)
+    k_rad_GB = 8.0 * SB_const * eps * (T**3) * e1 * (phi / (1.0 - phi)) * (diam / 2.0)
     return k_rad_GB
 
 
-def calc_k_rad_sakatani(e, diam, T, phi, zeta):
+def calc_k_rad_sakatani(eps, diam, T, phi, zeta):
     """
     Calculate the radiative thermal conductivity based on the Sakatani et al. (2017) model.
 
     Parameters
     ----------
-    e : float
+    eps : float
         Emissivity of the material
     diam : float
         Diameter of particle (m)
@@ -311,7 +311,7 @@ def calc_k_rad_sakatani(e, diam, T, phi, zeta):
     # 90-106 um: 1.8-2.6
     # 53-63 um: 2.5-4.0
     # emb powder 5 um: ~15
-    k_rad_sakatani = 8.0 * (e / (2.0 - e)) * SB_const * zeta * ((phi / (1.0 - phi))**(1.0 / 3.0)) * (diam / 2.0) * T**3
+    k_rad_sakatani = 8.0 * (eps / (2.0 - eps)) * SB_const * zeta * ((phi / (1.0 - phi))**(1.0 / 3.0)) * (diam / 2.0) * T**3
     return k_rad_sakatani
 # Radiative component of thermal conductivity =================================
 
