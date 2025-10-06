@@ -14,6 +14,23 @@ Note on the time:
     DAMIT: UTC
     IAU  : Barycentric Dynamical Time (Temps Dynamique Barycentrique, TDB)
 
+Note on the consistency:
+J.B. guesses that 
+the inconsistency between values in DAMIT or Table 2 in Mottola+2020
+and the outputs of this code are from the fact that some digits 
+have been rounded in the references. 
+For Ceres, for instance, if we use 
+  (alpha, delta = 290.4, 63.48)
+rather than 
+  (alpha, delta = 290, 63), # values in DAMIT IAUspin.txt
+we can get consistent phi0.
+For Leucus in Mottola+2020, if we use
+  (alpha, delta = 247.6, 58.15)
+rather than 
+  (alpha, delta = 248, 58), # values in their Table 2
+we can get consistent phi0.
+
+
 Examples
 --------
 Validation with J.B.'s favorite asteroid (433) Eros
@@ -23,6 +40,9 @@ Validation with J.B.'s favorite asteroid (433) Eros
 Calculate DAMIT spin parameters with arbitrary inputs
 
 >>> python IAU2DAMIT.py --alpha 290 --delta 63 --W0 247.3 --W1 952.1529 --t0 2451545.00 --t1 2434407.00
+
+# Phobos from Archinal+2011
+>>> python IAU2DAMIT.py --alpha 317.68 --delta 52.90 --W0 35.06 --W1 1128.8445850 --t0 2451545.00 --t1 2451545.00
 """
 from argparse import ArgumentParser as ap
 import numpy as np
@@ -80,6 +100,11 @@ def fetch_param(obj: str) -> dict:
     elif obj == "CERES":
         alpha = 290
         delta = 63
+        
+        # Value to get consistent phi0
+        #alpha = 290.4
+        #delta = 63.48
+
         W0    = 247.3   
         W1    = 952.152878
         t0    = 2451545.00
@@ -138,6 +163,11 @@ def fetch_param(obj: str) -> dict:
     elif obj == "LEUCUS":
         alpha = 248
         delta = 58
+
+        # Value to get consistent phi0
+        alpha = 247.6
+        delta = 58.15
+
         W0    = 60.014   
         W1    = 360/445.683*24
         t0    = 2451545.00
