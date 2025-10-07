@@ -48,6 +48,9 @@ from argparse import ArgumentParser as ap
 import numpy as np
 from numpy.linalg import inv
 from astropy.time import Time
+# To plot 
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
 
 
 # Useful functions ============================================================
@@ -242,6 +245,32 @@ def cart2sph(x, y, z):
     # angle from xy-plane toward z-axis
     elev = np.arcsin(z / r)          
     return azi, elev, r
+
+
+def sample_ra_dec(ra, dec, N):
+    """
+    """
+    ra_min, ra_max = ra - 0.5, ra + 0.5
+    dec_min, dec_max = dec - 0.5, dec + 0.5
+
+    ra_list = np.random.uniform(ra_min, ra_max, N)
+    dec_list = np.random.uniform(dec_min, dec_max, N)
+
+    return ra_list, dec_list
+
+
+def shift_angles(phi0_list, phi0_nominal):
+    """Shift angles for the sake of clarity.
+
+    Parameters
+    ----------
+    phi0_list : array-like
+        list of phi0
+    phi0_nominal : float
+        nominal phi0
+    """
+    shifted = (np.array(phi0_list) - phi0_nominal + 180) % 360 - 180
+    return shifted
 # Useful functions ============================================================
 
 
@@ -297,12 +326,14 @@ def IAU2DAMIT(
     lam_deg = np.degrees(lam)
     beta_deg = np.degrees(beta)
 
-    # This doesn't change that much
-    #W0 = (W0 + W1*(t1 - t0))%360
-    #t0 = tdb2utc(t0)
+    # Convert IAU reference epoch from TDB to UTC,
+    # since IAU rotational elements are defined in TDB while 
+    # DAMIT parameters are based on UTC.
+    # This doesn't change that much, but more strict.
+    t0 = tdb2utc(t0)
 
     # W: position of the prime meridian at the time t in deg
-    # Added by J.B.
+    # (Added by J.B.)
     W = (W0 + W1*(t1 - t0))%360
     
     M_ = inv(
@@ -351,6 +382,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--t1", type=float, default=2434407.00,
         help="t1 (time in DAMIT spin file)")
+    parser.add_argument(
+        "--analysis", action="store_true",
+        help="Plot phi0 error region")
     args = parser.parse_args()
     
 
@@ -386,7 +420,61 @@ if __name__ == "__main__":
         print(f"    phi0        = {params_DAMIT['phi0']:.4f} deg")
         print(f"    (lam, beta) = ({params_DAMIT['lam']:.4f}, {params_DAMIT['beta']:.4f}) deg")
         print()
-   
+
+        if args.analysis:
+            # Plot phi0 considering uncertainties on the pole orientation
+            # Nominal
+            phi0_nominal = phi0
+            N = 10000
+            ra_list, dec_list = sample_ra_dec(alpha, delta, N)
+            
+            phi0_list = []
+            for (ra, dec) in zip(ra_list, dec_list):
+                params_DAMIT = IAU2DAMIT(
+                   ra, dec,
+                   W0, W1, 
+                   t0, t1)
+                phi0 = params_DAMIT["phi0"]
+                phi0_list.append(phi0)
+            
+            # To plot clearly
+            phi0_list = shift_angles(phi0_list, phi0_nominal)
+            # Typical uncertainty is less than 6 deg
+            x_grid = np.linspace(-6, 6, 300) 
+            kde = gaussian_kde(phi0_list)
+            pdf = kde(x_grid)
+
+            fig, ax = plt.subplots(1, 2, figsize=(16, 6))
+            
+            ax[0].scatter(
+                ra_list, dec_list, s=10, alpha=0.6, color="black", label=f"Samples N={N}")
+
+            ax[0].scatter(alpha, delta, color="red", s=50, label="nominal")
+            ax[0].set_xlabel("RA [deg]")
+            ax[0].set_ylabel("DEC [deg]")
+            ax[0].set_title(f"{args.obj}")
+            ax[0].legend(framealpha=1.0)
+            ax[0].grid(True)
+            
+            ax[1].plot(
+                x_grid, pdf, color="black", linewidth=2, label="$\phi_0$ for all possible (RA, DEC)")
+            ax[1].axvline(0, color="red", linestyle="--", linewidth=2, label="nominal")
+            ax[1].set_xlabel("$\Delta \phi_0 = \phi_0 - \phi_{0,nominal} " + f"= \phi_0 - {phi0_nominal}$")
+            ax[1].set_ylabel("PDF")
+            ax[1].set_title("Distribution of $\phi_0$")
+            ax[1].legend(framealpha=1.0)
+
+            
+            plt.tight_layout()
+            plt.show(block=False)
+            save_ans = input("Save figure? (y/n): ").strip().lower()
+            if save_ans == "y":
+                filename = "phi0_distribution.jpg"
+                fig.savefig(filename, dpi=300, bbox_inches="tight")
+                print(f"Saved: {filename}")
+            else:
+                print("Do not save.")
+
     else:
         params_DAMIT = IAU2DAMIT(
             args.alpha, args.delta,
@@ -412,3 +500,4 @@ if __name__ == "__main__":
         print(f"    beta      = {params_DAMIT['beta']:.4f} deg")
         print()
         pass
+
