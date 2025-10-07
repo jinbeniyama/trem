@@ -35,7 +35,7 @@ Examples
 --------
 Validation with J.B.'s favorite asteroid (433) Eros
 
->>> python3 IAU2DAMIT.py --obj Eros
+>>> python IAU2DAMIT.py --obj Eros
 
 Calculate DAMIT spin parameters with arbitrary inputs
 
@@ -43,6 +43,9 @@ Calculate DAMIT spin parameters with arbitrary inputs
 
 # Phobos from Archinal+2011
 >>> python IAU2DAMIT.py --alpha 317.68 --delta 52.90 --W0 35.06 --W1 1128.8445850 --t0 2451545.00 --t1 2451545.00
+
+# Consider uncertainties in RA and DEC
+>>> python IAU2DAMIT.py --obj Eros --analysis
 """
 from argparse import ArgumentParser as ap
 import numpy as np
@@ -326,11 +329,14 @@ def IAU2DAMIT(
     lam_deg = np.degrees(lam)
     beta_deg = np.degrees(beta)
 
+    # TODO: Check
     # Convert IAU reference epoch from TDB to UTC,
     # since IAU rotational elements are defined in TDB while 
     # DAMIT parameters are based on UTC.
     # This doesn't change that much, but more strict.
-    t0 = tdb2utc(t0)
+    # However, IF we convert t0 here, the result is NOT consistent with 
+    # DAMIT......
+    #t0 = tdb2utc(t0)
 
     # W: position of the prime meridian at the time t in deg
     # (Added by J.B.)
