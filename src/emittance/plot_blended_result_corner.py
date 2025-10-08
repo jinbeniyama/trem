@@ -178,13 +178,16 @@ if __name__ == "__main__":
         #title_kwargs={"fontsize": 12}, 
         smoonth=1,
         plot_datapoints=True,     
-        plot_density=True,       
-        plot_contours=True,
+        #plot_density=True,       
+        #plot_contours=True,
+        plot_density=False,       
+        plot_contours=False,
         bins=50
         )
 
     percent_interest = 68
     #fig.text(0.55, 0.8, f"The best fit (not median) and the interval\nthat contains {percent_interest}% of the samples are shown.")
+    fig.text(0.55, 0.8, f"Note: All data points are\nincluded within the range of figures.")
     
     # Obtain axes 
     axes = np.array(fig.axes).reshape(len(param_cols), len(param_cols))
@@ -225,6 +228,7 @@ if __name__ == "__main__":
         ax.set_title(text, fontsize=12)
         ax.legend(fontsize=10)
         # Add margin
-        ax.set_xlim(np.array(ax.get_xlim()) * [0.8, 1.2])
+        #ax.set_xlim(np.array(ax.get_xlim()) * [0.8, 1.2])
+
 
     fig.savefig(args.out, dpi=300, bbox_inches='tight')
