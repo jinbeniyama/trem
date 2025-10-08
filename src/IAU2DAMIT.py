@@ -336,7 +336,7 @@ def IAU2DAMIT(
     # This doesn't change that much, but more strict.
     # However, IF we convert t0 here, the result is NOT consistent with 
     # DAMIT......
-    #t0 = tdb2utc(t0)
+    t0 = tdb2utc(t0)
 
     # W: position of the prime meridian at the time t in deg
     # (Added by J.B.)
@@ -418,6 +418,7 @@ if __name__ == "__main__":
         print(f"    W1             = {W1:.4f} deg/day")
         print(f"    t0             = {t0:.4f}")
         print(f"    t1             = {t1:.4f}")
+        print(f"    t1-t0          = {t1-t0:.4f}")
         print(f"    Correct phi0   = {phi0:.4f} deg")
         print()
 
@@ -475,7 +476,7 @@ if __name__ == "__main__":
             plt.show(block=False)
             save_ans = input("Save figure? (y/n): ").strip().lower()
             if save_ans == "y":
-                filename = "phi0_distribution.jpg"
+                filename = f"phi0_distribution_{args.obj}.jpg"
                 fig.savefig(filename, dpi=300, bbox_inches="tight")
                 print(f"Saved: {filename}")
             else:
@@ -497,6 +498,7 @@ if __name__ == "__main__":
         print(f"    W1             = {args.W1:.4f} deg/day")
         print(f"    t0             = {args.t0:.4f}")
         print(f"    t1             = {args.t1:.4f}")
+        print(f"    t1-t0          = {args.t1-args.t0:.4f}")
         print()
 
         print("   Calculated")
