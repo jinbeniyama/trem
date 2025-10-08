@@ -473,6 +473,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
         # same result as Cambioni+2021
         # T ~ 300 K 
         c_p = 750.0
+        sample = "tagish"
 
 
     elif obj =="Eros":
@@ -495,6 +496,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
         # At Eros's mean "GLOBAL?" diurnal temperature (from Figure 4 of Macke+2019, MPS, 54, 2729.)
         meteorite_type = "H"
         c_p = c_p_ordinary_chondrite(meteorite_type, T_typical)
+        sample = "eros"
     else:
         assert False, "Not implemented."
 
@@ -519,7 +521,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
     # Create lookup table of regolith conductivity vs particle size
     out_keff = keff(
         D_arr, 0.01, 10.0, phi, T_typical, 1.0e-10, emiss, rho_e, 
-        "N2", sample="tagish", planet=obj, k_const=k_m, new_fk=1, zetaxi=1, surfenergy=0.032) 
+        "N2", sample=sample, planet=obj, k_const=k_m, new_fk=1, zetaxi=1, surfenergy=0.032) 
     
     k_s_sakatani   = out_keff["k_s_sakatani"]
     k_rad_sakatani = out_keff["k_rad_sakatani"]
