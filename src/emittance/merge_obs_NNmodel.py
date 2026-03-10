@@ -124,8 +124,15 @@ def concat_obs_NN(df_obs, df_NN):
     """
     # use useful columns
     df_obs_reduced = df_obs[["jd", "w", "f_obs", "ferr_obs"]]
+
     # concat with keys of "jd" and "w"
+    # This is important to merge
+    df_obs_reduced["jd"] = df_obs_reduced["jd"].round(5)
+    df_NN["jd"] = df_NN["jd"].round(5)
+
     df_result = df_NN.merge(df_obs_reduced, on=["jd", "w"], how="left")
+    assert not df_result.isna().any().any(), "df_result contains NaN values!"
+
     return df_result
 
 
@@ -138,6 +145,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "f_obs", type=str,
         help="Example of TPM result (to extract observations)")
+    parser.add_argument(
+        "--preprocessed", action="store_true", default=False,
+        help="Use preprocessed data")
     parser.add_argument(
         "--notuse", type=float, nargs="*", default=None,
         help="Epoch not used")
@@ -167,8 +177,18 @@ if __name__ == "__main__":
 
     # Read observations
     print("Observations")
-    ## read a result of TPM
-    df_obs = read_obs(args.f_obs)
+    
+    # Already preprocessed (e.g., for simulation data)
+    if args.preprocessed:
+        df_obs = pd.read_csv(args.f_obs, sep=" ")
+    else:
+        # read a result of TPM
+        df_obs = read_obs(args.f_obs)
+        # Save for test
+        #df_obs.to_csv("test.txt", sep=" ", index=False)
+
+    assert not df_obs.isna().any().any(), "df_obs contains NaN values!"
+
     ## Remove useless epochs here
     if args.notuse:
         for epoch_notuse in args.notuse:
