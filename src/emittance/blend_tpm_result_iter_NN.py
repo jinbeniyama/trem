@@ -246,6 +246,9 @@ if __name__ == "__main__":
     parser.add_argument("--scale_all", action="store_true", default=False)
     parser.add_argument("--scale_per_obs", action="store_true", default=False)
     parser.add_argument("--out", type=str, default="res.txt")
+    parser.add_argument(
+        "--outbinary", action="store_true", default=False,
+        help="Save as binary")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -416,7 +419,13 @@ if __name__ == "__main__":
     # Save CSV
     # -----------------------------
     save_start = time.time()
-    df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
+
+    # The size of .parquet is roughly 1/10 of the size of .csv (TBC)
+    if args.outbinary:
+        df.to_parquet(args.out, engine="pyarrow", index=False)
+    else:
+        # This dataframe is equivallent to the return of extract_flux in trem/common.py
+        df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
     elapsedtime(save_start, "Save CSV")
 
     # -----------------------------
