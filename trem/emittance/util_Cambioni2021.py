@@ -71,7 +71,7 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     henke_k = 4.3 * np.exp(-Phi / 0.08)
     avg_k = (flynn_k + henke_k) / 2.0
 
-    print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
+    #print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
 
     if model == "henke":
         avg_k = henke_k
