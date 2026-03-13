@@ -39,8 +39,8 @@ def build_cache(df_NN):
 # Worker for multiprocessing
 # ---------------------------------------------------------
 
-def worker_Htheta_iter(args):
 
+def worker_Htheta_iter(args):
     (
         Htheta,
         TIrego_list,
@@ -50,15 +50,20 @@ def worker_Htheta_iter(args):
         df_cache
     ) = args
 
+    rego_data = {ti: df_cache[(Htheta, ti)] for ti in TIrego_list}
+    rock_data = {ti: df_cache[(Htheta, ti)] for ti in TIrock_list}
+
     rows = []
 
     for TIrego in TIrego_list:
-
-        df_rego = df_cache[(Htheta, TIrego)]
+        df_rego = rego_data[TIrego]
 
         for TIrock in TIrock_list:
+            # I think this is useless
+            if TIrego > TIrock: 
+                continue
 
-            df_rock = df_cache[(Htheta, TIrock)]
+            df_rock = rock_data[TIrock]
 
             alpha_arr, chi2_arr = search_regolith_abundance(
                 df_rego,
@@ -68,8 +73,10 @@ def worker_Htheta_iter(args):
                 True
             )
 
-            for a, c in zip(alpha_arr, chi2_arr):
-                rows.append([Htheta, TIrego, TIrock, a, c])
+            rows.extend([
+                [Htheta, TIrego, TIrock, a, c]
+                for a, c in zip(alpha_arr, chi2_arr)
+            ])
 
     return rows
 
@@ -93,7 +100,7 @@ def worker_Htheta_final(args):
 
     for TIrego in TIrego_list:
 
-        df_rego = df_cache[(Htheta, TIrego)].copy()
+        df_rego = df_cache[(Htheta, TIrego)]
 
         for TIrock in TIrock_list:
 
@@ -101,7 +108,7 @@ def worker_Htheta_final(args):
             if TIrego > TIrock:
                 continue
 
-            df_rock = df_cache[(Htheta, TIrock)].copy()
+            df_rock = df_cache[(Htheta, TIrock)]
 
             if fixscale:
 
@@ -121,6 +128,8 @@ def worker_Htheta_final(args):
                 rows_all.extend(rows)
 
             elif scale_all:
+
+                assert False, "Check if we don't need .copy()"
 
                 sf0, sf1, sfstep = 0.90, 1.10, 0.01
                 sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
@@ -146,6 +155,7 @@ def worker_Htheta_final(args):
                     rows_all.extend(rows)
 
             elif scale_per_obs:
+                assert False, "Check if we don't need .copy()"
 
                 sf0, sf1, sfstep = 0.90, 1.10, 0.01
                 sf_list = np.arange(sf0, sf1, sfstep)
@@ -228,27 +238,49 @@ def worker_Htheta_final(args):
 
     return rows_all
 
+
 # ---------------------------------------------------------
 # Main
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
     parser = ap()
-    parser.add_argument("res", type=str)
-    parser.add_argument("--TI0", type=float, default=150)
-    parser.add_argument("--TI_thresh", type=float, default=False)
-    parser.add_argument("--obj", type=str, default="Eros")
-    parser.add_argument("--T_typical", type=float, default=295.)
-    parser.add_argument("--chi2_min0", type=float, default=200000)
-    parser.add_argument("--phi", type=float, default=0.20)
-    parser.add_argument("--astep", type=float, default=0.1)
-    parser.add_argument("--fixscale", action="store_true", default=False)
-    parser.add_argument("--scale_all", action="store_true", default=False)
-    parser.add_argument("--scale_per_obs", action="store_true", default=False)
-    parser.add_argument("--out", type=str, default="res.txt")
+    parser.add_argument(
+        "res", type=str)
+    parser.add_argument(
+        "--TI0", type=float, default=150)
+    parser.add_argument(
+        "--bestparam", type=str, default=None, 
+        help="Best fit parameters with single component model")
+    parser.add_argument(
+        "--TI_thresh", type=float, default=False)
+    parser.add_argument(
+        "--obj", type=str, default="Eros")
+    parser.add_argument(
+        "--T_typical", type=float, default=295.)
+    parser.add_argument(
+        "--chi2_min0", type=float, default=200000)
+    parser.add_argument(
+        "--phi", type=float, default=0.20)
+    parser.add_argument(
+        "--astep", type=float, default=0.1)
+    parser.add_argument(
+        "--fixscale", action="store_true", default=False)
+    parser.add_argument(
+        "--scale_all", action="store_true", default=False)
+    parser.add_argument(
+        "--scale_per_obs", action="store_true", default=False)
+    parser.add_argument(
+        "--inbinary", action="store_true", default=False,
+        help="If input is binary")
+    parser.add_argument(
+        "--out", type=str, default="res.txt")
     parser.add_argument(
         "--outbinary", action="store_true", default=False,
         help="Save as binary")
+    parser.add_argument(
+        "--outsummary", type=str, default=None,
+        help="Output ")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -257,7 +289,10 @@ if __name__ == "__main__":
     # Read CSV
     # -----------------------------
     read_start = time.time()
-    df_NN = pd.read_csv(args.res, sep=" ")
+    if args.inbinary:
+        df_NN = pd.read_parquet(args.res)
+    else:
+        df_NN = pd.read_csv(args.res, sep=" ")
     elapsedtime(read_start, "Read CSV")
 
     df_NN["scalefactor"] = 1
@@ -274,9 +309,9 @@ if __name__ == "__main__":
     # Build cache
     # -----------------------------
     cache_start = time.time()
-    #df_cache = build_cache(df_NN, Htheta_list, TI_list)
     df_cache = build_cache(df_NN)
     elapsedtime(cache_start, "Build cache")
+
 
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
 
@@ -284,7 +319,14 @@ if __name__ == "__main__":
     # Iterative determination of TI_thresh
     # -----------------------------
     iter_start = time.time()
-    TI_rock0 = args.TI0
+
+    # Initial thermal inertia of rock
+    if args.bestparam:
+        # Read best fit param
+        df_bp = pd.read_csv(args.bestparam, sep=" ")
+        TI_rock0 = df_bp["TI"].values.tolist()[0]
+    else:
+        TI_rock0 = args.TI0
     dTI_goal = 1e-3
 
     if args.TI_thresh:
@@ -372,12 +414,12 @@ if __name__ == "__main__":
     ]
 
     pool_start = time.time()
+
     with Pool(cpu_count()) as pool:
         results = pool.map(worker_Htheta_final, tasks)
     elapsedtime(pool_start, "Parallel worker_Htheta_final")
 
     rows_all = [r for sub in results for r in sub]
-    elapsedtime(final_start, "After final calculation")
 
     # -----------------------------
     # Build final dataframe
@@ -424,11 +466,21 @@ if __name__ == "__main__":
     if args.outbinary:
         df.to_parquet(args.out, engine="pyarrow", index=False)
     else:
-        # This dataframe is equivallent to the return of extract_flux in trem/common.py
         df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
-    elapsedtime(save_start, "Save CSV")
+    elapsedtime(save_start, "Save output file")
+
+    # Output summary file
+    if args.outsummary:
+        # Make summary
+        df_summary = pd.DataFrame({
+            "TI_thresh": [TI_thresh],
+            "T_typical": [args.T_typical],
+            "phi": [args.phi],
+            })
+        df_summary.to_csv(args.outsummary, sep=" ", index=False, float_format="%.2f")
 
     # -----------------------------
     # Total elapsed time
     # -----------------------------
     elapsedtime(t0, "Total")
+    print()
