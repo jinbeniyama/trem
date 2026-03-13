@@ -364,7 +364,8 @@ if __name__ == "__main__":
             ]
 
             pool_start = time.time()
-            with Pool(cpu_count()) as pool:
+            #with Pool(cpu_count()) as pool:
+            with Pool(4) as pool:
                 results = pool.map(worker_Htheta_iter, tasks)
             elapsedtime(pool_start, "Parallel worker_Htheta_iter")
 
@@ -415,7 +416,8 @@ if __name__ == "__main__":
 
     pool_start = time.time()
 
-    with Pool(cpu_count()) as pool:
+    #with Pool(cpu_count()) as pool:
+    with Pool(4) as pool:
         results = pool.map(worker_Htheta_final, tasks)
     elapsedtime(pool_start, "Parallel worker_Htheta_final")
 
