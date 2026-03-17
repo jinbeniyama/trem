@@ -91,6 +91,9 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     if desired_TI < TI.min() or desired_TI > TI.max():
         raise ValueError("Desired TI is out of the calculated range.")
 
+    if desired_TI > TI.max():
+        print(f"Warning: desired_TI {desired_TI} exceeds model max {TI.max()} (phi={phi})")
+
     out_Phi = np.interp(desired_TI, TI[::-1], Phi[::-1])
     out_k = np.interp(out_Phi, Phi, avg_k)
     out_rho_b = rho_s * (1.0 - out_Phi)
@@ -508,7 +511,9 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
     # Particle diameter array from 100 microns to 15 cm
     # in m
     #D_arr = np.linspace(0.100e-3, 0.150e-2, 150)
-    D_arr = np.linspace(100e-6, 150e-3, 10000)
+    #D_arr = np.linspace(100e-6, 150e-3, 10000)
+    # This should be large enough to find intersection.
+    D_arr = np.logspace(np.log10(100e-6), np.log10(150e-2), 100000)
 
     # Calculate k_m (conductivity) and rho (material density of rock fragments) based on TIrock
     result = calc_prop(
@@ -542,6 +547,9 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
     Dth = D_arr[mindifpos]
     k_out = k_out[mindifpos]
     TIth = np.sqrt(k_out * c_p * rho_e)
+
+    if Dth >= D_arr.max() * 0.95 or Dth <= D_arr.min() * 1.05:
+        print(f"    Warning: Intersection reached array boundary! Dth={Dth:.4f}, phi={phi}")
 
     return Dth, TIth
 
@@ -578,10 +586,12 @@ if __name__ == "__main__":
         ax.set_xscale("log")
         ax.set_title(f"{obj}, T={T_typical} [K]")
         ax.set_ylim([0, 200])
-
+        
         phi_list = [0.15, 0.40, 0.60]
-        ls_list = ["solid", "dashed", "dotted"]
-        col_list = ["black", "red", "blue"]
+        phi_list = [0.15, 0.40, 0.60, 0.8]
+        #phi_list = [0.15, 0.40]
+        ls_list = ["solid", "dashed", "dotted", "solid", "dashed", "dotted"]
+        col_list = ["black", "red", "blue", "orange", "green", "brown"]
         for idx, phi in enumerate(phi_list):
             TIth_list = []
             for TI_rock in TIrock_list:
