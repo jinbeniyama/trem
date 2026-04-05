@@ -361,6 +361,8 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     rho_b = props["rho_bulk"]
 
     k_s = k_s_func(T)
+    if k_const is not None:
+        k_s = k_const
     
     # Consider macroporosity
     rho_e = rho_b * (1.0 - phi)
