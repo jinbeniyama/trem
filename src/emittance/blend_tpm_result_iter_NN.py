@@ -8,14 +8,12 @@ Optimized version:
 - Parallelized over Htheta
 - Cached dataframe filtering
 """
-
 import os
-import sys
 import time
-from argparse import ArgumentParser as ap
-from multiprocessing import Pool, cpu_count
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool
+from argparse import ArgumentParser as ap
 
 from trem.common import elapsedtime
 from trem.emittance.common_emittance import (
@@ -27,462 +25,189 @@ from trem.emittance.util_Cambioni2021 import calc_TIth
 def elapsedtime(t0, msg="Elapsed"):
     print(f"[TIME] {msg}: {time.time() - t0:.2f} s")
 
+# --- Global cache ---
+global_cache = None
 
-# ---------------------------------------------------------
-# Cache dataframe slices
-# ---------------------------------------------------------
-def build_cache(df_NN):
-    cache = {k: v.reset_index(drop=True) for k, v in df_NN.groupby(["Htheta", "TI"])}
-    return cache
-
-# ---------------------------------------------------------
-# Worker for multiprocessing
-# ---------------------------------------------------------
-
+def init_worker(shared_cache):
+    global global_cache
+    global_cache = shared_cache
 
 def worker_Htheta_iter(args):
-    (
-        Htheta,
-        TIrego_list,
-        TIrock_list,
-        alpha_list,
-        chi2_min0,
-        df_cache
-    ) = args
-
-    rego_data = {ti: df_cache[(Htheta, ti)] for ti in TIrego_list}
-    rock_data = {ti: df_cache[(Htheta, ti)] for ti in TIrock_list}
-
+    (Htheta, TIrego_list, TIrock_list, alpha_list, chi2_min0) = args
     rows = []
-
     for TIrego in TIrego_list:
-        df_rego = rego_data[TIrego]
-
+        df_rego = global_cache[(Htheta, TIrego)]
         for TIrock in TIrock_list:
-            # I think this is useless
-            if TIrego > TIrock: 
-                continue
-
-            df_rock = rock_data[TIrock]
-
-            alpha_arr, chi2_arr = search_regolith_abundance(
-                df_rego,
-                df_rock,
-                alpha_list,
-                chi2_min0,
-                True
-            )
-
-            rows.extend([
-                [Htheta, TIrego, TIrock, a, c]
-                for a, c in zip(alpha_arr, chi2_arr)
-            ])
-
+            if TIrego > TIrock: continue
+            df_rock = global_cache[(Htheta, TIrock)]
+            alpha_arr, chi2_arr = search_regolith_abundance(df_rego, df_rock, alpha_list, chi2_min0, True)
+            rows.extend([[Htheta, TIrego, TIrock, a, c] for a, c in zip(alpha_arr, chi2_arr)])
     return rows
 
-
-# Inside worker function for final calculation
 def worker_Htheta_final(args):
+    (Htheta, TIrego_list, TIrock_list, alpha_list, chi2_min0,
+     fixscale, scale_all, scale_per_obs, out_file) = args
 
-    (
-        Htheta,
-        TIrego_list,
-        TIrock_list,
-        alpha_list,
-        chi2_min0,
-        df_cache,
-        fixscale,
-        scale_all,
-        scale_per_obs
-    ) = args
-
-    rows_all = []
-
+    rows_h = []
     for TIrego in TIrego_list:
-
-        df_rego = df_cache[(Htheta, TIrego)]
-
+        df_rego = global_cache[(Htheta, TIrego)]
         for TIrock in TIrock_list:
-
-            # Skip meaningless combination
-            if TIrego > TIrock:
-                continue
-
-            df_rock = df_cache[(Htheta, TIrock)]
+            if TIrego > TIrock: continue
+            df_rock = global_cache[(Htheta, TIrock)]
 
             if fixscale:
-
-                alpha_arr, chi2_arr = search_regolith_abundance(
-                    df_rego,
-                    df_rock,
-                    alpha_list,
-                    chi2_min0,
-                    False
-                )
-
-                rows = [
-                    [Htheta, TIrego, TIrock, a, c]
-                    for a, c in zip(alpha_arr, chi2_arr)
-                ]
-
-                rows_all.extend(rows)
-
+                alpha_arr, chi2_arr = search_regolith_abundance(df_rego, df_rock, alpha_list, chi2_min0, False)
+                rows_h.extend([[Htheta, TIrego, TIrock, a, c] for a, c in zip(alpha_arr, chi2_arr)])
             elif scale_all:
-
-                assert False, "Check if we don't need .copy()"
-
-                sf0, sf1, sfstep = 0.90, 1.10, 0.01
-                sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
-
-                for sf in sf_list:
-
-                    df_rego.loc[:, "scalefactor"] = sf
-                    df_rock.loc[:, "scalefactor"] = sf
-
-                    alpha_arr, chi2_arr = search_regolith_abundance(
-                        df_rego,
-                        df_rock,
-                        alpha_list,
-                        chi2_min0,
-                        False
-                    )
-
-                    rows = [
-                        [Htheta, TIrego, TIrock, a, c, sf]
-                        for a, c in zip(alpha_arr, chi2_arr)
-                    ]
-
-                    rows_all.extend(rows)
-
+                for sf in np.arange(0.90, 1.11, 0.01):
+                    d1, d2 = df_rego.copy(), df_rock.copy()
+                    d1["scalefactor"], d2["scalefactor"] = sf, sf
+                    alpha_arr, chi2_arr = search_regolith_abundance(d1, d2, alpha_list, chi2_min0, False)
+                    rows_h.extend([[Htheta, TIrego, TIrock, a, c, sf] for a, c in zip(alpha_arr, chi2_arr)])
             elif scale_per_obs:
-                assert False, "Check if we don't need .copy()"
-
-                sf0, sf1, sfstep = 0.90, 1.10, 0.01
-                sf_list = np.arange(sf0, sf1, sfstep)
-
-                key_t = "jd"
-
-                t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
-
-                df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
-                df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
-
+                t_unique, _ = extract_unique_epoch(df_rego, "jd")
+                df_rego_w, df_rock_w = df_rego.copy(), df_rock.copy()
                 for al in alpha_list:
-
                     sf_epoch_list = []
+                    for epoch in t_unique:
+                        r_ep, rk_ep = df_rego_w[df_rego_w["jd"]==epoch], df_rock_w[df_rock_w["jd"]==epoch]
+                        best_sf, min_c = 1.0, float('inf')
+                        for sf in np.arange(0.90, 1.10, 0.01):
+                            f_b = blend_flux_numpy(r_ep["f_model"].to_numpy(), sf, rk_ep["f_model"].to_numpy(), sf, al)
+                            chi2 = np.sum((r_ep["f_obs"].to_numpy()-f_b)**2 / r_ep["ferr_obs"].to_numpy()**2)
+                            if chi2 < min_c: min_c, best_sf = chi2, sf
+                        sf_epoch_list.append(best_sf)
+                        df_rego_w.loc[df_rego_w["jd"]==epoch, "scalefactor"] = best_sf
+                        df_rock_w.loc[df_rock_w["jd"]==epoch, "scalefactor"] = best_sf
+                    f_b_f = blend_flux_numpy(df_rego_w["f_model"].to_numpy(), df_rego_w["scalefactor"].to_numpy(),
+                                             df_rock_w["f_model"].to_numpy(), df_rock_w["scalefactor"].to_numpy(), al)
+                    tot_c = np.sum((df_rego_w["f_obs"].to_numpy()-f_b_f)**2 / df_rego_w["ferr_obs"].to_numpy()**2)
+                    rows_h.append([Htheta, TIrego, TIrock, al, tot_c] + sf_epoch_list)
 
-                    for epoch in t_unique_list:
+    best_local, tmp_path = None, None
+    if rows_h:
+        if fixscale: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+        elif scale_all: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
+        else: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"] + [f"scalefactor{i+1}" for i in range(len(rows_h[0])-5)]
 
-                        df_rego_epoch = df_rego[df_rego["jd"] == epoch]
-                        df_rock_epoch = df_rock[df_rock["jd"] == epoch]
-
-                        for idx_sf, sf in enumerate(sf_list):
-
-                            df_rego_epoch.loc[:, "scalefactor"] = sf
-                            df_rock_epoch.loc[:, "scalefactor"] = sf
-
-                            f1 = df_rego_epoch["f_model"].to_numpy()
-                            f2 = df_rock_epoch["f_model"].to_numpy()
-                            f_obs = df_rego_epoch["f_obs"].to_numpy()
-                            ferr_obs = df_rego_epoch["ferr_obs"].to_numpy()
-
-                            f_blend = blend_flux_numpy(f1, sf, f2, sf, al)
-
-                            diff = (f_obs - f_blend) ** 2 / ferr_obs ** 2
-                            chi2 = np.sum(diff)
-
-                            if idx_sf == 0:
-
-                                chi2_min_epoch_sf = chi2
-                                sf_epoch = sf
-
-                            else:
-
-                                if chi2 < chi2_min_epoch_sf:
-
-                                    chi2_min_epoch_sf = chi2
-                                    sf_epoch = sf
-
-                        df_rego.loc[
-                            df_rego["jd"] == epoch,
-                            "scalefactor"
-                        ] = sf_epoch
-
-                        df_rock.loc[
-                            df_rock["jd"] == epoch,
-                            "scalefactor"
-                        ] = sf_epoch
-
-                        sf_epoch_list.append(sf_epoch)
-
-                    f1 = df_rego["f_model"].to_numpy()
-                    sf_per_obs = df_rego["scalefactor"].to_numpy()
-                    f2 = df_rock["f_model"].to_numpy()
-                    f_obs = df_rock["f_obs"].to_numpy()
-                    ferr_obs = df_rock["ferr_obs"].to_numpy()
-
-                    f_blend = blend_flux_numpy(
-                        f1,
-                        sf_per_obs,
-                        f2,
-                        sf_per_obs,
-                        al
-                    )
-
-                    diff = (f_obs - f_blend) ** 2 / ferr_obs ** 2
-                    chi2 = np.sum(diff)
-
-                    rows = [[Htheta, TIrego, TIrock, al, chi2] + sf_epoch_list]
-
-                    rows_all.extend(rows)
-
-    return rows_all
-
-
-# ---------------------------------------------------------
-# Main
-# ---------------------------------------------------------
+        df_chunk = pd.DataFrame(rows_h, columns=cols)
+        tmp_path = f"{out_file}.tmp_{Htheta}.parquet"
+        df_chunk.to_parquet(tmp_path, index=False)
+        best_local = df_chunk.loc[df_chunk["chi2"].idxmin()].to_dict()
+        del df_chunk
+        rows_h.clear()
+    return best_local, tmp_path
 
 if __name__ == "__main__":
     parser = ap()
-    parser.add_argument(
-        "res", type=str)
-    parser.add_argument(
-        "--TI0", type=float, default=150)
-    parser.add_argument(
-        "--bestparam", type=str, default=None, 
-        help="Best fit parameters with single component model")
-    parser.add_argument(
-        "--TI_thresh", type=float, default=False)
-    parser.add_argument(
-        "--obj", type=str, default="Eros")
-    parser.add_argument(
-        "--T_typical", type=float, default=295.)
-    parser.add_argument(
-        "--chi2_min0", type=float, default=200000)
-    parser.add_argument(
-        "--phi", type=float, default=0.20)
-    parser.add_argument(
-        "--astep", type=float, default=0.1)
-    parser.add_argument(
-        "--fixscale", action="store_true", default=False)
-    parser.add_argument(
-        "--scale_all", action="store_true", default=False)
-    parser.add_argument(
-        "--scale_per_obs", action="store_true", default=False)
-    parser.add_argument(
-        "--inbinary", action="store_true", default=False,
-        help="If input is binary")
-    parser.add_argument(
-        "--out", type=str, default="res.txt")
-    parser.add_argument(
-        "--outbinary", action="store_true", default=False,
-        help="Save as binary")
-    parser.add_argument(
-        "--outsummary", type=str, default=None,
-        help="Output ")
+    parser.add_argument("res", type=str)
+    parser.add_argument("--TI0", type=float, default=150)
+    parser.add_argument("--bestparam", type=str, default=None)
+    parser.add_argument("--TI_thresh", type=float, default=None)
+    parser.add_argument("--obj", type=str, default="Eros")
+    parser.add_argument("--T_typical", type=float, default=295.)
+    parser.add_argument("--chi2_min0", type=float, default=200000)
+    parser.add_argument("--phi", type=float, default=0.20)
+    parser.add_argument("--astep", type=float, default=0.1)
+    parser.add_argument("--fixscale", action="store_true")
+    parser.add_argument("--scale_all", action="store_true")
+    parser.add_argument("--scale_per_obs", action="store_true")
+    parser.add_argument("--inbinary", action="store_true")
+    parser.add_argument("--out", type=str, default="res.txt")
+    parser.add_argument("--outbinary", action="store_true")
+    parser.add_argument("--outsummary", type=str, default=None)
     args = parser.parse_args()
 
     t0 = time.time()
 
-    # -----------------------------
-    # Read CSV
-    # -----------------------------
-    read_start = time.time()
-    if args.inbinary:
-        df_NN = pd.read_parquet(args.res)
-    else:
-        df_NN = pd.read_csv(args.res, sep=" ")
-    elapsedtime(read_start, "Read CSV")
+    # Read
+    t_sub = time.time()
+    df_NN = pd.read_parquet(args.res) if args.inbinary else pd.read_csv(args.res, sep=" ")
+    df_NN["scalefactor"] = 1.0
+    elapsedtime(t_sub, "Read CSV")
 
-    df_NN["scalefactor"] = 1
+    # Extract
+    t_sub = time.time()
+    Htheta_list = sorted(df_NN["Htheta"].unique())
+    TI_list = sorted(df_NN["TI"].unique())
+    elapsedtime(t_sub, "Extract unique Htheta/TI")
 
-    # -----------------------------
-    # Extract unique Htheta and TI
-    # -----------------------------
-    extract_start = time.time()
-    Htheta_list = sorted(list(set(df_NN["Htheta"])))
-    TI_list = sorted(list(set(df_NN["TI"])))
-    elapsedtime(extract_start, "Extract unique Htheta/TI")
+    # Cache
+    t_sub = time.time()
+    df_cache = {k: v.reset_index(drop=True) for k, v in df_NN.groupby(["Htheta", "TI"])}
+    del df_NN
+    elapsedtime(t_sub, "Build cache")
 
-    # -----------------------------
-    # Build cache
-    # -----------------------------
-    cache_start = time.time()
-    df_cache = build_cache(df_NN)
-    elapsedtime(cache_start, "Build cache")
-
-
+    # --- Iterative process ---
+    t_iter = time.time()
+    # ここを TI_rock0 に統一
+    TI_rock0 = pd.read_csv(args.bestparam, sep=" ")["TI"].iloc[0] if args.bestparam else args.TI0
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
-
-    # -----------------------------
-    # Iterative determination of TI_thresh
-    # -----------------------------
-    iter_start = time.time()
-
-    # Initial thermal inertia of rock
-    if args.bestparam:
-        # Read best fit param
-        df_bp = pd.read_csv(args.bestparam, sep=" ")
-        TI_rock0 = df_bp["TI"].values.tolist()[0]
-    else:
-        TI_rock0 = args.TI0
-    dTI_goal = 1e-3
 
     if args.TI_thresh:
         TI_thresh = args.TI_thresh
-        print(f"[INFO] TI_thresh manually set: {TI_thresh:.2f}")
-        TIrock_list = [x for x in TI_list if x >= TI_thresh]
-        TIrego_list = [x for x in TI_list if x <= TI_thresh]
+        TIrk_l, TIrg_l = [x for x in TI_list if x >= TI_thresh], [x for x in TI_list if x <= TI_thresh]
     else:
         print("[INFO] Start iterative process to determine TI_thresh...")
         while True:
-            _, TI_thresh = calc_TIth(
-                TI_rock0,
-                args.T_typical,
-                args.obj,
-                args.phi
-            )
+            _, TI_thresh = calc_TIth(TI_rock0, args.T_typical, args.obj, args.phi)
+            TIrk_l, TIrg_l = [x for x in TI_list if x >= TI_thresh], [x for x in TI_list if x <= TI_thresh]
 
-            TIrock_list = [x for x in TI_list if x >= TI_thresh]
-            TIrego_list = [x for x in TI_list if x <= TI_thresh]
+            print(f"  Current TI_rock0 = {TI_rock0:.2f}, Calculated TI_thresh = {TI_thresh:.2f}")
+            print(f"  N_TIrock = {len(TIrk_l)}, N_TIrego = {len(TIrg_l)}")
 
-            print(f"  Current TI_rock0 = {TI_rock0:.2f}")
-            print(f"  Calculated TI_thresh = {TI_thresh:.2f}")
-            print(f"  N_TIrock = {len(TIrock_list)}, N_TIrego = {len(TIrego_list)}")
+            tasks = [(H, TIrg_l, TIrk_l, alpha_list, args.chi2_min0) for H in Htheta_list]
+            t_p = time.time()
+            with Pool(processes=4, initializer=init_worker, initargs=(df_cache,)) as pool:
+                res = pool.map(worker_Htheta_iter, tasks)
+            elapsedtime(t_p, "Parallel worker_Htheta_iter")
 
-            tasks = [
-                (
-                    Htheta,
-                    TIrego_list,
-                    TIrock_list,
-                    alpha_list,
-                    args.chi2_min0,
-                    df_cache
-                )
-                for Htheta in Htheta_list
-            ]
-
-            pool_start = time.time()
-            #with Pool(cpu_count()) as pool:
-            with Pool(4) as pool:
-                results = pool.map(worker_Htheta_iter, tasks)
-            elapsedtime(pool_start, "Parallel worker_Htheta_iter")
-
-            rows = [r for sub in results for r in sub]
-
-            df = pd.DataFrame(
-                rows,
-                columns=["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-            )
-
-            chi2_min, best_params = extract_bestparam(
-                df,
-                "chi2",
-                ["TIrock"]
-            )
-
-            TI_rock_best = best_params[0]
+            df_it = pd.DataFrame([r for sub in res for r in sub], columns=["Htheta", "TIrego", "TIrock", "alpha", "chi2"])
+            _, best_p = extract_bestparam(df_it, "chi2", ["TIrock"])
+            TI_rock_best = best_p[0]
             dTI = abs(TI_rock_best - TI_rock0) / TI_rock0
-
             print(f"  Best TI_rock = {TI_rock_best:.2f}, dTI = {dTI:.5f}")
 
-            if dTI < dTI_goal:
-                print(f"[INFO] Converged: TI_rock_best = {TI_rock_best:.2f}, TI_thresh = {TI_thresh:.2f}\n")
-                break
-            else:
-                TI_rock0 = TI_rock_best
-                print("  Not yet converged, updating TI_rock0...\n")
-    elapsedtime(iter_start, "Iterative TI_thresh")
+            if dTI < 1e-3: break
+            TI_rock0 = TI_rock_best # 更新
+    elapsedtime(t_iter, "Iterative TI_thresh")
 
-    # -----------------------------
-    # Final parallel computation
-    # -----------------------------
-    final_start = time.time()
-    tasks = [
-        (
-            Htheta,
-            TIrego_list,
-            TIrock_list,
-            alpha_list,
-            args.chi2_min0,
-            df_cache,
-            args.fixscale,
-            args.scale_all,
-            args.scale_per_obs
-        )
-        for Htheta in Htheta_list
-    ]
+    # --- Final calculation ---
+    t_final = time.time()
+    final_tasks = [(H, TIrg_l, TIrk_l, alpha_list, args.chi2_min0, args.fixscale, args.scale_all, args.scale_per_obs, args.out) for H in Htheta_list]
 
-    pool_start = time.time()
+    t_p = time.time()
+    with Pool(processes=4, initializer=init_worker, initargs=(df_cache,)) as pool:
+        results = pool.map(worker_Htheta_final, final_tasks)
+    elapsedtime(t_p, "Parallel worker_Htheta_final")
 
-    #with Pool(cpu_count()) as pool:
-    with Pool(4) as pool:
-        results = pool.map(worker_Htheta_final, tasks)
-    elapsedtime(pool_start, "Parallel worker_Htheta_final")
+    # --- Result handling ---
+    t_sub = time.time()
+    valid_res = [r for r in results if r[1] is not None]
+    if valid_res:
+        best_final = pd.DataFrame([r[0] for r in valid_res]).sort_values("chi2").iloc[0]
+        print(f"\n[SUMMARY] Best-fit parameters:")
+        print(f"  chi2_min  = {best_final['chi2']:.2f}")
+        print(f"  alpha     = {best_final['alpha']:.2f}")
+        print(f"  Htheta    = {best_final['Htheta']:.2f}")
+        print(f"  TIrego    = {best_final['TIrego']:.2f}")
+        print(f"  TIrock    = {best_final['TIrock']:.2f}")
 
-    rows_all = [r for sub in results for r in sub]
+        df_final = pd.concat([pd.read_parquet(r[1]) for r in valid_res], ignore_index=True)
+        elapsedtime(t_sub, "Build final DataFrame")
 
-    # -----------------------------
-    # Build final dataframe
-    # -----------------------------
-    df_build_start = time.time()
-    if args.fixscale:
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-    elif args.scale_all:
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
-    elif args.scale_per_obs:
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-        for idx, epoch in enumerate(range(len(rows_all[0]) - 5)):
-            column.append(f"scalefactor{idx+1}")
+        t_save = time.time()
+        is_binary = args.outbinary or args.out.endswith(".parquet")
+        if is_binary:
+            df_final.to_parquet(args.out, index=False)
+        else:
+            df_final.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
+        elapsedtime(t_save, "Save output file")
 
-    df = pd.DataFrame(rows_all, columns=column)
-    elapsedtime(df_build_start, "Build final DataFrame")
+        for r in valid_res: os.remove(r[1]) # 掃除
 
-    # -----------------------------
-    # Print summary
-    # -----------------------------
-    best_idx = df["chi2"].idxmin()
-    best_row = df.loc[best_idx]
-
-    print("\n[SUMMARY] Best-fit parameters:")
-    print(f"  chi2_min  = {best_row['chi2']:.2f}")
-    print(f"  alpha     = {best_row['alpha']:.2f}")
-    print(f"  Htheta    = {best_row['Htheta']:.2f}")
-    print(f"  TIrego    = {best_row['TIrego']:.2f}")
-    print(f"  TIrock    = {best_row['TIrock']:.2f}")
-
-    if args.scale_all:
-        print(f"  scalefactor = {best_row['scalefactor']:.3f}")
-    elif args.scale_per_obs:
-        sf_cols = [c for c in df.columns if "scalefactor" in c]
-        sf_list = [best_row[c] for c in sf_cols]
-        print(f"  scale factors per epoch = {sf_list}")
-
-    # -----------------------------
-    # Save CSV
-    # -----------------------------
-    save_start = time.time()
-
-    # The size of .parquet is roughly 1/10 of the size of .csv (TBC)
-    if args.outbinary:
-        df.to_parquet(args.out, engine="pyarrow", index=False)
-    else:
-        df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
-    elapsedtime(save_start, "Save output file")
-
-    # Output summary file
     if args.outsummary:
-        # Make summary
-        df_summary = pd.DataFrame({
-            "TI_thresh": [TI_thresh],
-            "T_typical": [args.T_typical],
-            "phi": [args.phi],
-            })
-        df_summary.to_csv(args.outsummary, sep=" ", index=False, float_format="%.2f")
+        pd.DataFrame({"TI_thresh": [TI_thresh], "T_typical": [args.T_typical], "phi": [args.phi]}).to_csv(args.outsummary, sep=" ", index=False, float_format="%.2f")
 
-    # -----------------------------
-    # Total elapsed time
-    # -----------------------------
     elapsedtime(t0, "Total")
     print()
