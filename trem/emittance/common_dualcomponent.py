@@ -3,7 +3,7 @@
 """Common functions for dual-component TPM.
 """
 from trem.emittance.common_emittance import calc_chi2, calc_chi2_numpy
-
+import numpy as np
 
 def blend_flux(df1, df2, alpha):
     """
@@ -49,34 +49,79 @@ def blend_flux_numpy(f1, s1, f2, s2, alpha):
     return alpha * (s1**2) * f1 + (1 - alpha) * (s2**2) * f2
 
 
+#def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=False):
+#    """
+#    Search regolith abundance alpha which minimize chi2.
+#
+#    Parameters
+#    ----------
+#    df1 : pandas.DataFrame
+#        dataframe with TI of regolith (i.e., low TI)
+#    df2 : pandas.DataFrame
+#        dataframe with TI of regolith (i.e., low TI)
+#    alpha_list : array-like
+#        list of regolith abundance
+#    chi2_min : float
+#        initial chi2 minimum
+#    minonly : bool
+#        return minimum chi2 and corresponding alpha (i.e., fit by alpha)
+#    sf : bool
+#        introduce scale parameters per epoch (only for spectra)
+#
+#    Returns
+#    -------
+#    alpha_arr : float
+#        array of regolith abundance 
+#    chi2_arr : float
+#        array of chi2
+#    """
+#    alpha_arr, chi2_arr = [], []
+#    
+#    f1 = df1["f_model"].to_numpy()
+#    s1 = df1["scalefactor"].to_numpy()
+#    f2 = df2["f_model"].to_numpy()
+#    s2 = df2["scalefactor"].to_numpy()
+#    f_obs = df1["f_obs"].to_numpy()
+#    ferr_obs = df1["ferr_obs"].to_numpy()
+#
+#    for a in alpha_list:
+#        # Blend flux as 
+#        #   F = alpha*F_regolith*s1^2 + (1-alpha)*F_rock*s2^2,
+#        # where s1 and s2 are scale factors.
+#        ## This is slow
+#        #df_blend = blend_flux(df1, df2, a)
+#
+#        ## This is faster
+#        f_blend = blend_flux_numpy(f1, s1, f2, s2, a)
+#
+#        # Calculate chi2 of blended flux
+#        ## This is slow
+#        #chi2 = calc_chi2(df_blend)
+#        ## This is faster
+#        ## Set global scale factor to 1 (scale factors are alraeady introduced!)
+#        chi2 = calc_chi2_numpy(f_obs, f_blend, ferr_obs, 1)
+#
+#        if minonly:
+#            if chi2 < chi2_min:
+#                alpha_arr = [a]
+#                chi2_arr = [chi2]
+#                chi2_min = chi2
+#            else:
+#                pass
+#        else:
+#            alpha_arr.append(a)
+#            chi2_arr.append(chi2)
+#
+#    return alpha_arr, chi2_arr
+
+# Fast
 def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=False):
     """
     Search regolith abundance alpha which minimize chi2.
-
-    Parameters
-    ----------
-    df1 : pandas.DataFrame
-        dataframe with TI of regolith (i.e., low TI)
-    df2 : pandas.DataFrame
-        dataframe with TI of regolith (i.e., low TI)
-    alpha_list : array-like
-        list of regolith abundance
-    chi2_min : float
-        initial chi2 minimum
-    minonly : bool
-        return minimum chi2 and corresponding alpha (i.e., fit by alpha)
-    sf : bool
-        introduce scale parameters per epoch (only for spectra)
-
-    Returns
-    -------
-    alpha_arr : float
-        array of regolith abundance 
-    chi2_arr : float
-        array of chi2
+    Vectorized implementation (same algorithm, faster).
     """
-    alpha_arr, chi2_arr = [], []
-    
+
+    # convert to numpy arrays
     f1 = df1["f_model"].to_numpy()
     s1 = df1["scalefactor"].to_numpy()
     f2 = df2["f_model"].to_numpy()
@@ -84,36 +129,33 @@ def search_regolith_abundance(df1, df2, alpha_list, chi2_min=10000, minonly=Fals
     f_obs = df1["f_obs"].to_numpy()
     ferr_obs = df1["ferr_obs"].to_numpy()
 
-    for a in alpha_list:
-        # Blend flux as 
-        #   F = alpha*F_regolith*s1^2 + (1-alpha)*F_rock*s2^2,
-        # where s1 and s2 are scale factors.
-        ## This is slow
-        #df_blend = blend_flux(df1, df2, a)
+    alpha_arr = []
+    chi2_arr = []
 
-        ## This is faster
-        f_blend = blend_flux_numpy(f1, s1, f2, s2, a)
+    # Precompute scaled fluxes
+    rego = f1 * s1**2
+    rock = f2 * s2**2
 
-        # Calculate chi2 of blended flux
-        ## This is slow
-        #chi2 = calc_chi2(df_blend)
-        ## This is faster
-        ## Set global scale factor to 1 (scale factors are alraeady introduced!)
-        chi2 = calc_chi2_numpy(f_obs, f_blend, ferr_obs, 1)
+    alpha = np.asarray(alpha_list)
 
-        if minonly:
-            if chi2 < chi2_min:
-                alpha_arr = [a]
-                chi2_arr = [chi2]
-                chi2_min = chi2
-            else:
-                pass
-        else:
-            alpha_arr.append(a)
-            chi2_arr.append(chi2)
+    # Vectorized blend flux: F = rock + alpha * (rego - rock)
+    delta = rego - rock
+    f_blend = rock + alpha[:, None] * delta  # shape: (N_alpha, N_data)
+
+    # Vectorized chi2
+    diff = (f_obs - f_blend)**2 / ferr_obs**2
+    chi2_all = np.sum(diff, axis=1)
+
+    if minonly:
+        idx = np.argmin(chi2_all)
+        if chi2_all[idx] < chi2_min:
+            alpha_arr = [alpha[idx]]
+            chi2_arr = [chi2_all[idx]]
+    else:
+        alpha_arr = alpha.tolist()
+        chi2_arr = chi2_all.tolist()
 
     return alpha_arr, chi2_arr
-
 
 def calc_C_coord(phi):
     """
@@ -203,60 +245,3 @@ def calc_Phi(TI_rock, c_p, rho_s):
     # Solution satisfying 0 < Phi < 1
     Phi = (C - (C**2 - 4)**0.5) / 2
     return Phi
-    
-
-def calc_TI_th(TI_rock):
-    """
-    Calculate threshold of thermal inertia of regolith and rock
-    (gamma_c in Cambioni+2021).
-    gamma_c is defined as thermal inertia when D_p = l_s,
-    where D_p is particle diameter and l_s is thermal skin depth.
-
-    Parameters
-    ----------
-    TI_rock : float
-        thermal inertia of rock
-
-    Return
-    ------
-    TI_th : float
-        threshold of thermal inertia of regolith and rock
-    """
-
-    # Fixed parameters in Cambioni+2021 =======================================
-    # Macroporosity of Bennu 
-    phi = 0.4
-    # Grain density of CM meteorites in kg/m^3
-    rho_s = 2920
-    # Heat capacity for meteorite CM2 Cold Bokkeveld at OTES spot's 
-    # mean diurnal temperature (from Figure 3 in Opeil+2020, MPS)
-    # TODO: what is mean diurnal temperature? Read by eye?
-    c_p = 999
-    # Degree of reduction of the thermal conductance at the contacts 
-    # owring to the microscopic roughness of the particle surfaces
-    # (from Sakatani+2018, Icarus ?)
-    xi = 0.12
-    # Fixed parameters in Cambioni+2021 =======================================
-
-
-    # 1. Derive microscipic porosity (microporosity) Phi
-    #    with TI_rock, c_p (heat capacity), and rho_s (grain density)
-    Phi = calc_Phi(TI_rock, c_p, rho_s)
-
-    # 2. Derive thermal conductivity kappa
-    kappa = TI_rock**2/(c_p * rho_s * (1 - Phi))
-
-    # Density considering macroporosity phi and microscopic porosity Phi
-    rho = rho_s * (1 - Phi) * (1 - phi)
-
-    # 3.Derive regolith bulk thermal conductivity, kappa_p,
-    # with Standard Regolith Model in Sakatani+2018
-    # TODO: This kappa is dependent on D_p?
-    kappa_p_list = kappa_Sakatani2018(kappa)
-    #       Find k_p where D_p = l_s?
-    kappa_p = 999
-
-
-    # 4. Finally derive threshold of thermal inertia
-    TI_th = (kappa_p * c_p * rho)**0.5
-    return TI_th

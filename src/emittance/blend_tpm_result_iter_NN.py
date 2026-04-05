@@ -3,394 +3,211 @@
 """
 Search best regolith abundance etc. with NN using a brute-force method
 with iterative processes.
-The initial thermal inertia (TI0) is used to determine an initial cutoff (TI_thresh)
-in the iterative processes.
-Only the results when converged are saved as "blend_tpm_result.py".
 
-Example
--------
-# Calculate best chi2 values with variety of parameters.
-> blend_tpm_result_iter.py tpmout* 
-
-TODO
-----
-bond albedo, A, is always fixed?? For Eros, yes.
+Optimized version:
+- Parallelized over Htheta
+- Cached dataframe filtering
 """
-import os 
-import sys
+import os
 import time
-from argparse import ArgumentParser as ap
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool
+from argparse import ArgumentParser as ap
 
 from trem.common import elapsedtime
 from trem.emittance.common_emittance import (
     extract_bestparam, extract_unique_epoch)
-from trem.emittance.common_dualcomponent import search_regolith_abundance, blend_flux_numpy
+from trem.emittance.common_dualcomponent import (
+    search_regolith_abundance, blend_flux_numpy)
 from trem.emittance.util_Cambioni2021 import calc_TIth
 
+def elapsedtime(t0, msg="Elapsed"):
+    print(f"[TIME] {msg}: {time.time() - t0:.2f} s")
+
+# --- Global cache ---
+global_cache = None
+
+def init_worker(shared_cache):
+    global global_cache
+    global_cache = shared_cache
+
+def worker_Htheta_iter(args):
+    (Htheta, TIrego_list, TIrock_list, alpha_list, chi2_min0) = args
+    rows = []
+    for TIrego in TIrego_list:
+        df_rego = global_cache[(Htheta, TIrego)]
+        for TIrock in TIrock_list:
+            if TIrego > TIrock: continue
+            df_rock = global_cache[(Htheta, TIrock)]
+            alpha_arr, chi2_arr = search_regolith_abundance(df_rego, df_rock, alpha_list, chi2_min0, True)
+            rows.extend([[Htheta, TIrego, TIrock, a, c] for a, c in zip(alpha_arr, chi2_arr)])
+    return rows
+
+def worker_Htheta_final(args):
+    (Htheta, TIrego_list, TIrock_list, alpha_list, chi2_min0,
+     fixscale, scale_all, scale_per_obs, out_file) = args
+
+    rows_h = []
+    for TIrego in TIrego_list:
+        df_rego = global_cache[(Htheta, TIrego)]
+        for TIrock in TIrock_list:
+            if TIrego > TIrock: continue
+            df_rock = global_cache[(Htheta, TIrock)]
+
+            if fixscale:
+                alpha_arr, chi2_arr = search_regolith_abundance(df_rego, df_rock, alpha_list, chi2_min0, False)
+                rows_h.extend([[Htheta, TIrego, TIrock, a, c] for a, c in zip(alpha_arr, chi2_arr)])
+            elif scale_all:
+                for sf in np.arange(0.90, 1.11, 0.01):
+                    d1, d2 = df_rego.copy(), df_rock.copy()
+                    d1["scalefactor"], d2["scalefactor"] = sf, sf
+                    alpha_arr, chi2_arr = search_regolith_abundance(d1, d2, alpha_list, chi2_min0, False)
+                    rows_h.extend([[Htheta, TIrego, TIrock, a, c, sf] for a, c in zip(alpha_arr, chi2_arr)])
+            elif scale_per_obs:
+                t_unique, _ = extract_unique_epoch(df_rego, "jd")
+                df_rego_w, df_rock_w = df_rego.copy(), df_rock.copy()
+                for al in alpha_list:
+                    sf_epoch_list = []
+                    for epoch in t_unique:
+                        r_ep, rk_ep = df_rego_w[df_rego_w["jd"]==epoch], df_rock_w[df_rock_w["jd"]==epoch]
+                        best_sf, min_c = 1.0, float('inf')
+                        for sf in np.arange(0.90, 1.10, 0.01):
+                            f_b = blend_flux_numpy(r_ep["f_model"].to_numpy(), sf, rk_ep["f_model"].to_numpy(), sf, al)
+                            chi2 = np.sum((r_ep["f_obs"].to_numpy()-f_b)**2 / r_ep["ferr_obs"].to_numpy()**2)
+                            if chi2 < min_c: min_c, best_sf = chi2, sf
+                        sf_epoch_list.append(best_sf)
+                        df_rego_w.loc[df_rego_w["jd"]==epoch, "scalefactor"] = best_sf
+                        df_rock_w.loc[df_rock_w["jd"]==epoch, "scalefactor"] = best_sf
+                    f_b_f = blend_flux_numpy(df_rego_w["f_model"].to_numpy(), df_rego_w["scalefactor"].to_numpy(),
+                                             df_rock_w["f_model"].to_numpy(), df_rock_w["scalefactor"].to_numpy(), al)
+                    tot_c = np.sum((df_rego_w["f_obs"].to_numpy()-f_b_f)**2 / df_rego_w["ferr_obs"].to_numpy()**2)
+                    rows_h.append([Htheta, TIrego, TIrock, al, tot_c] + sf_epoch_list)
+
+    best_local, tmp_path = None, None
+    if rows_h:
+        if fixscale: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
+        elif scale_all: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
+        else: cols = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"] + [f"scalefactor{i+1}" for i in range(len(rows_h[0])-5)]
+
+        df_chunk = pd.DataFrame(rows_h, columns=cols)
+        tmp_path = f"{out_file}.tmp_{Htheta}.parquet"
+        df_chunk.to_parquet(tmp_path, index=False)
+        best_local = df_chunk.loc[df_chunk["chi2"].idxmin()].to_dict()
+        del df_chunk
+        rows_h.clear()
+    return best_local, tmp_path
 
 if __name__ == "__main__":
-    parser = ap(
-        description="Blend thermal fluxes introducing alpha, "
-        "regolith abundance with iterative process")
-    parser.add_argument(
-        "res", type=str,
-        help="Results of NN")
-    parser.add_argument(
-        "--TI0", type=float, default=150,
-        help="Initial thermal inertia of rock to determine "
-        "threshold of TI of regolith and rocks")
-    parser.add_argument(
-        "--TI_thresh", type=float, default=False,
-        help="Thermal inertia cutoff")
-    parser.add_argument(
-        "--obj", type=str, default="Eros",
-        help="Object to refer to physical parameters")
-    parser.add_argument(
-        "--T_typical", type=float, default=295.,
-        help="Typical temperature in K")
-    parser.add_argument(
-        "--chi2_min0", type=float, default=200000,
-        help="Initial minimum chi2 used to find the best alpha")
-    parser.add_argument(
-        "--phi", type=float, default=0.20,
-        help="Macroporosity")
-    parser.add_argument(
-        "--astep", type=float, default=0.1,
-        help="Step of regolith abundance")
-    parser.add_argument(
-        "--fixscale", action="store_true", default=False,
-        help="Fix scale factor to 1.")
-    parser.add_argument(
-        "--scale_all", action="store_true", default=False,
-        help="Use global scale factor")
-    parser.add_argument(
-        "--scale_per_obs", action="store_true", default=False,
-        help="Use scale factors per observation")
-    parser.add_argument(
-        "--fitalpha", action="store_true", default=False,
-        help="Fit with alpha")
-    parser.add_argument(
-        "--out", type=str, default="res.txt",
-        help="Output file")
-    parser.add_argument(
-        "--outdir", type=str, default=".",
-        help="Directory for output file")
+    parser = ap()
+    parser.add_argument("res", type=str)
+    parser.add_argument("--TI0", type=float, default=150)
+    parser.add_argument("--bestparam", type=str, default=None)
+    parser.add_argument("--TI_thresh", type=float, default=None)
+    parser.add_argument("--obj", type=str, default="Eros")
+    parser.add_argument("--T_typical", type=float, default=295.)
+    parser.add_argument("--chi2_min0", type=float, default=200000)
+    parser.add_argument("--phi", type=float, default=0.20)
+    parser.add_argument("--astep", type=float, default=0.1)
+    parser.add_argument("--fixscale", action="store_true")
+    parser.add_argument("--scale_all", action="store_true")
+    parser.add_argument("--scale_per_obs", action="store_true")
+    parser.add_argument("--inbinary", action="store_true")
+    parser.add_argument("--out", type=str, default="res.txt")
+    parser.add_argument("--outbinary", action="store_true")
+    parser.add_argument("--outsummary", type=str, default=None)
     args = parser.parse_args()
-   
-    t0 = time.time() 
 
-    # Parse arguments =========================================================
-    outdir = args.outdir
-    os.makedirs(outdir, exist_ok=True)
-    fixscale = args.fixscale
-    scale_all = args.scale_all
-    scale_per_obs = args.scale_per_obs
-    chi2_min0 = args.chi2_min0
-    if fixscale & scale_per_obs:
-        print("  Choose either fixscale or scale_per_obs.")
-        print("  Exit")
-        sys.exit()
-    elif fixscale:
-        print("  Scale factors are assumed to be 1.")
-    elif scale_per_obs:
-        print("  Scale factors are introduced per epoch. (only for spectroscopy)")
-    # Parse arguments =========================================================
+    t0 = time.time()
 
-    # Read files 
-    df_NN = pd.read_csv(args.res, sep=" ")
-    # Add dummy
-    df_NN["scalefactor"] = 1
-    Htheta_list = sorted(list(set(df_NN["Htheta"])))
-    TI_list= sorted(list(set(df_NN["TI"])))
-    # Number of Htheta (roughness) and TI (thermal inertia)
-    N_Htheta = len(Htheta_list)
-    N_TI = len(TI_list)
-    # Just to count the number of data points
-    df_temp = df_NN[
-        (df_NN["Htheta"] == Htheta_list[0]) & (df_NN["TI"] == TI_list[0])
-        ]
-    # Number of data points
-    N_data = len(df_temp)
+    # Read
+    t_sub = time.time()
+    df_NN = pd.read_parquet(args.res) if args.inbinary else pd.read_csv(args.res, sep=" ")
+    df_NN["scalefactor"] = 1.0
+    elapsedtime(t_sub, "Read CSV")
 
-    # Start iterative process =================================================
-    print("Start iterative process to determine TI_threshold (a.k.a., Gamma_c)")
-    print("")
-    # Initial thermal inertia to determine threshold
-    # (e.g., TI estimated with single-component TPM)
-    TI_rock0 = args.TI0
+    # Extract
+    t_sub = time.time()
+    Htheta_list = sorted(df_NN["Htheta"].unique())
+    TI_list = sorted(df_NN["TI"].unique())
+    elapsedtime(t_sub, "Extract unique Htheta/TI")
 
-    # Regolith abundance 
+    # Cache
+    t_sub = time.time()
+    df_cache = {k: v.reset_index(drop=True) for k, v in df_NN.groupby(["Htheta", "TI"])}
+    del df_NN
+    elapsedtime(t_sub, "Build cache")
+
+    # --- Iterative process ---
+    t_iter = time.time()
+    # ここを TI_rock0 に統一
+    TI_rock0 = pd.read_csv(args.bestparam, sep=" ")["TI"].iloc[0] if args.bestparam else args.TI0
     alpha_list = np.arange(0, 1.0 + args.astep, args.astep)
-    print(f"List of regolith abundance: {alpha_list}")
-    print("")
 
     if args.TI_thresh:
         TI_thresh = args.TI_thresh
-
-        # TI_thresh is given by hand
-        TIrock_list = [x for x in TI_list if x >= TI_thresh]
-        N_TIrock = len(TIrock_list)
-        TIrego_list = [x for x in TI_list if x <= TI_thresh]
-        N_TIrego = len(TIrego_list)
-        print(f"Let's divide TI values into two with TI_thresh = {TI_thresh:.2f}")
-        print(f"      N_TI          = {N_TI}")
-        print(f"      N_TIrock      = {N_TIrock}")
-        print(f"      N_TIrego      = {N_TIrego}")
-        print(f"      Note: Not always N_TI = N_TIrock + N_TIrego")
-        print("")
-
+        TIrk_l, TIrg_l = [x for x in TI_list if x >= TI_thresh], [x for x in TI_list if x <= TI_thresh]
     else:
-   
-        # Iterate until TI_th converges (dTI < dTI_goal)
-        dTI  = 1e5
-        dTI_goal = 1e-3
+        print("[INFO] Start iterative process to determine TI_thresh...")
         while True:
-            # TODO:
-            # How to determine a typical temperature (T_typical)?
-            # To determine c_p(T).
-            # TI prop c_p**0.5, so the dependence is usually weak.
-            # But it is better to consider later.
-            T_typical = args.T_typical
-            # Determine a TI_threshold with TI_rock
-            # (See trem/emittance/util_Cambioni2021.py for detail)
-            _, TI_thresh = calc_TIth(TI_rock0, T_typical, args.obj, args.phi)
+            _, TI_thresh = calc_TIth(TI_rock0, args.T_typical, args.obj, args.phi)
+            TIrk_l, TIrg_l = [x for x in TI_list if x >= TI_thresh], [x for x in TI_list if x <= TI_thresh]
 
-            # Make lists of TIrock and TIrego with a given TI_thresh
-            TIrock_list = [x for x in TI_list if x >= TI_thresh]
-            N_TIrock = len(TIrock_list)
-            TIrego_list = [x for x in TI_list if x <= TI_thresh]
-            N_TIrego = len(TIrego_list)
-            print(f"Let's divide TI with TI_thresh = {TI_thresh:.2f}")
-            print(f"      N_TI          = {N_TI}")
-            print(f"      N_TIrock      = {N_TIrock}")
-            print(f"      N_TIrego      = {N_TIrego}")
-            print(f"      Note: Not always N_TI = N_TIrock + N_TIrego")
-            print("")
+            print(f"  Current TI_rock0 = {TI_rock0:.2f}, Calculated TI_thresh = {TI_thresh:.2f}")
+            print(f"  N_TIrock = {len(TIrk_l)}, N_TIrego = {len(TIrg_l)}")
 
- 
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
-            N_comb = int(N_Htheta*N_TIrego*N_TIrock)
-            idx_all = 1
-            
-            # Make DataFrame to register chi2
-            column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-            df = pd.DataFrame(columns=column)
+            tasks = [(H, TIrg_l, TIrk_l, alpha_list, args.chi2_min0) for H in Htheta_list]
+            t_p = time.time()
+            with Pool(processes=4, initializer=init_worker, initargs=(df_cache,)) as pool:
+                res = pool.map(worker_Htheta_iter, tasks)
+            elapsedtime(t_p, "Parallel worker_Htheta_iter")
 
-            # Loop for Htheta (i.e., roughness)
-            for idx_Htheta, Htheta, in enumerate(Htheta_list):
-                print(f"  Htheta = {Htheta:.2f}")
-                elapsedtime(t0)
-                # Loop for TI of regolith
-                for idx_TIrego, TIrego in enumerate(TIrego_list):
-                    # Extract fluxes of regolith
-                    df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)]
-                    df_rego = df_rego.reset_index(drop=True)
+            df_it = pd.DataFrame([r for sub in res for r in sub], columns=["Htheta", "TIrego", "TIrock", "alpha", "chi2"])
+            _, best_p = extract_bestparam(df_it, "chi2", ["TIrock"])
+            TI_rock_best = best_p[0]
+            dTI = abs(TI_rock_best - TI_rock0) / TI_rock0
+            print(f"  Best TI_rock = {TI_rock_best:.2f}, dTI = {dTI:.5f}")
 
-                    # Loop for TI of rock
-                    for idx_TIrock, TIrock in enumerate(TIrock_list):
-                        df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)]
-                        df_rock = df_rock.reset_index(drop=True)
+            if dTI < 1e-3: break
+            TI_rock0 = TI_rock_best # 更新
+    elapsedtime(t_iter, "Iterative TI_thresh")
 
-                        # Combine two dataframe and return only alpha which gives
-                        # the minimum chi2
-                        # Note: results are already fit by alpha
-                        # Note: scale factors are assumed to be 1
-                        # TODO: Should we introduce scale factors 
-                        # as free parameters here as well?
-                        alpha_arr, chi2_arr = search_regolith_abundance(
-                            df_rego, df_rock, alpha_list, chi2_min0, True)
-                        # Save info.
-                        for a, c in zip(alpha_arr, chi2_arr):
-                            # For test
-                            #print(f"  -> alpha, chi2 = {a:.2f}, {c:.2f}")
-                            df.loc[len(df)] = [Htheta, TIrego, TIrock, a, c]
+    # --- Final calculation ---
+    t_final = time.time()
+    final_tasks = [(H, TIrg_l, TIrk_l, alpha_list, args.chi2_min0, args.fixscale, args.scale_all, args.scale_per_obs, args.out) for H in Htheta_list]
 
-                        # Update index
-                        idx_all += 1
-            # Calculate (chi2, alpha) for each (TI_rock, TI_rego, Htheta) =====
-            
-            # Determine the best fit parameters (TI_rock, TI_rego, Htheta)
-            # Note: alpha is already fit
-            key_chi2 = "chi2"
-            # Use only TIrock to check the convergence
-            params = ["TIrock"]
-            chi2_min, best_params = extract_bestparam(df, key_chi2, params)
-            TI_rock_best = best_params[0]
+    t_p = time.time()
+    with Pool(processes=4, initializer=init_worker, initargs=(df_cache,)) as pool:
+        results = pool.map(worker_Htheta_final, final_tasks)
+    elapsedtime(t_p, "Parallel worker_Htheta_final")
 
-            # Check convergence
-            dTI = abs(TI_rock_best - TI_rock0)/TI_rock0
-            print(f"      -> TI_rock0       = {TI_rock0:.2f}")
-            print(f"         TI_rock_best   = {TI_rock_best:.2f}")
-            print(f"         dTI            = {dTI:.2f}")
+    # --- Result handling ---
+    t_sub = time.time()
+    valid_res = [r for r in results if r[1] is not None]
+    if valid_res:
+        best_final = pd.DataFrame([r[0] for r in valid_res]).sort_values("chi2").iloc[0]
+        print(f"\n[SUMMARY] Best-fit parameters:")
+        print(f"  chi2_min  = {best_final['chi2']:.2f}")
+        print(f"  alpha     = {best_final['alpha']:.2f}")
+        print(f"  Htheta    = {best_final['Htheta']:.2f}")
+        print(f"  TIrego    = {best_final['TIrego']:.2f}")
+        print(f"  TIrock    = {best_final['TIrock']:.2f}")
 
-            # Finish the iterative process
-            if dTI < dTI_goal:
-                print(f"         Converged.")
-                print("")
-                break
-            # Otherwise update initial thermal inertia of rock (TI_rock)
-            else:
-                TI_rock0 = TI_rock_best
-                print(f"         Not converged yet.")
-                print("")
+        df_final = pd.concat([pd.read_parquet(r[1]) for r in valid_res], ignore_index=True)
+        elapsedtime(t_sub, "Build final DataFrame")
 
+        t_save = time.time()
+        is_binary = args.outbinary or args.out.endswith(".parquet")
+        if is_binary:
+            df_final.to_parquet(args.out, index=False)
+        else:
+            df_final.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
+        elapsedtime(t_save, "Save output file")
 
-    # Save the results when TI_th is converged.
-    # (inherit TIrego_list and TIrock_list)
-    # Make DataFrame to register chi2
-    if fixscale:
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-    elif scale_all:
-        # Note: This scale factor is applied for both spec. and phot.
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2", "scalefactor"]
-    elif scale_per_obs:
-        pass
+        for r in valid_res: os.remove(r[1]) # 掃除
 
+    if args.outsummary:
+        pd.DataFrame({"TI_thresh": [TI_thresh], "T_typical": [args.T_typical], "phi": [args.phi]}).to_csv(args.outsummary, sep=" ", index=False, float_format="%.2f")
 
-    # Loop for Htheta (i.e., roughness)
-    # (Maybe we can skip this 2nd calculation......, but I have no idea.)
-    
-    rows_all = []
-    for idx_Htheta, Htheta, in enumerate(Htheta_list):
-        print(f"  Htheta = {Htheta:.2f}")
-        elapsedtime(t0)
-
-        # Loop for TI of regolith
-        for idx_TIrego, TIrego in enumerate(TIrego_list):
-            # Extract fluxes of regolith
-            df_rego = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrego)].copy()
-            df_rego = df_rego.reset_index(drop=True)
-
-            # Loop for TI of rock
-            for idx_TIrock, TIrock in enumerate(TIrock_list):
-                # Extract fluxes of rock
-                df_rock = df_NN[(df_NN["Htheta"] == Htheta) & (df_NN["TI"] == TIrock)].copy()
-                df_rock = df_rock.reset_index(drop=True)
-
-                # wo/ scale factors
-                if fixscale:
-                    # Combine two dataframe and return only alpha which gives
-                    # the minimum chi2
-                    # Note: results are already fit by alpha
-                    # Note: scale factors are assumed to be 1
-                    alpha_arr, chi2_arr = search_regolith_abundance(
-                        df_rego, df_rock, alpha_list, chi2_min0, False)
-
-                    # Save info.
-                    rows = [
-                        [Htheta, TIrego, TIrock, a, c]
-                        for a, c in zip(alpha_arr, chi2_arr)
-                    ]
-                    rows_all.extend(rows)
-
-                # w/ global scale factors
-                elif scale_all:
-                    # Combine two dataframe and return chi-squared values 
-
-                    # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
-                    sf_list = np.arange(sf0, sf1 + sfstep, sfstep)
-
-                    key_t = "jd"
-                    t_unique_list, _ = extract_unique_epoch(df_rego, key_t)
-                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
-                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
-
-                    for sf in sf_list:
-                        # Introduce scale factors for both spec. and phot.
-                        df_rego.loc[:, "scalefactor"] = sf
-                        df_rock.loc[:, "scalefactor"] = sf
-
-                        sf_list1 = list(set(df_rego.scalefactor))
-                        #print(f"  Unique scale factors: {sf_list1}")
-                        alpha_arr, chi2_arr = search_regolith_abundance(
-                            df_rego, df_rock, alpha_list, chi2_min0, False)
-                        # Save info.
-                        rows = [
-                            [Htheta, TIrego, TIrock, a, c, sf]
-                            for a, c in zip(alpha_arr, chi2_arr)
-                        ]
-                        rows_all.extend(rows)
-
-                # w/ scale factors for spectra (not for photometry)
-                elif scale_per_obs:
-                    # Combine two dataframe and return chi-squared values 
-                    # Note: Scale factors are introduced.
-                    #       Results are already fit by the scale factors per obs.
-
-                    # TODO: As free parameters
-                    sf0, sf1, sfstep = 0.90, 1.10, 0.01
-                    sf_list = np.arange(sf0, sf1, sfstep)
-
-                    key_t = "jd"
-                    t_unique_list, dfs_phot = extract_unique_epoch(df_rego, key_t)
-                    df_rego["scalefactor"] = df_rego["scalefactor"].astype(float)
-                    df_rock["scalefactor"] = df_rock["scalefactor"].astype(float)
-
-                    # Search best scale parameters for each alpha
-                    for al in alpha_list:
-
-                        sf_epoch_list = []
-                        for epoch in t_unique_list: 
-                            df_rego_epoch = df_rego[df_rego["jd"] == epoch]
-                            df_rock_epoch = df_rock[df_rock["jd"] == epoch]
-                            
-                            # Fit scale factor here
-                            for idx_sf, sf in enumerate(sf_list):
-                                # Introduce scale factors only for photometry
-                                df_rego_epoch.loc[:, "scalefactor"] = sf
-                                df_rock_epoch.loc[:, "scalefactor"] = sf
-
-                                f1 = df_rego_epoch["f_model"].to_numpy()
-                                f2 = df_rock_epoch["f_model"].to_numpy()
-                                f_obs = df_rego_epoch["f_obs"].to_numpy()
-                                ferr_obs = df_rego_epoch["ferr_obs"].to_numpy()
-
-                                # Blended model flux for a combination of 
-                                # (epoch, scale factor, alpha)
-                                f_blend = blend_flux_numpy(f1, sf, f2, sf, al)
-
-                                # Calculate chi2 of blended flux
-                                diff = (f_obs - f_blend)**2 / ferr_obs**2
-                                chi2 = np.sum(diff)
-                                if idx_sf == 0:
-                                    chi2_min_epoch_sf = chi2
-                                    sf_epoch = sf
-                                else:
-                                    if chi2 < chi2_min_epoch_sf:
-                                        chi2_min_epoch_sf = chi2
-                                        sf_epoch = sf
-                            #print(f"Best sf at {epoch} with alpha of {al}: {sf_epoch}")
-                            # Update scale factors
-                            df_rego.loc[df_rego["jd"]==epoch, "scalefactor"] = sf_epoch
-                            df_rock.loc[df_rock["jd"]==epoch, "scalefactor"] = sf_epoch
-
-                            sf_epoch_list.append(sf_epoch)
-
-                        f1 = df_rego["f_model"].to_numpy()
-                        sf_per_obs = df_rego["scalefactor"].to_numpy()
-                        f2 = df_rock["f_model"].to_numpy()
-                        f_obs = df_rock["f_obs"].to_numpy()
-                        ferr_obs = df_rock["ferr_obs"].to_numpy()
-                        f_blend = blend_flux_numpy(f1, sf_per_obs, f2, sf_per_obs, al)
-
-                        # Calculate chi2 of blended flux
-                        diff = (f_obs - f_blend)**2 / ferr_obs**2
-                        chi2 = np.sum(diff)
-
-                        # Save info.
-                        # sf_epoch_list: best scale parameters for each epoch
-                        rows = [[Htheta, TIrego, TIrock, al, chi2] + sf_epoch_list]
-                        rows_all.extend(rows)
-    if scale_per_obs:
-        # Save all scale factors.
-        column = ["Htheta", "TIrego", "TIrock", "alpha", "chi2"]
-        for idx, epoch in enumerate(t_unique_list): 
-            column.append(f"scalefactor{idx+1}")
-
-    df = pd.DataFrame(rows_all, columns=column)
-
-    df.to_csv(args.out, sep=" ", index=False, float_format="%.2f")
-    elapsedtime(t0)
+    elapsedtime(t0, "Total")
+    print()

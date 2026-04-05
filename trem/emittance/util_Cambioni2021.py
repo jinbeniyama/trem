@@ -24,11 +24,49 @@ from astropy import constants as const
 import matplotlib.pyplot as plt
 from trem.emittance.material import (
     get_material_properties, calc_k_rad_GB, calc_k_rad_sakatani, 
-    c_p_ordinary_chondrite)
+    c_p_ordinary_chondrite, c_p_cm_chondrite)
 
 # Constants
 # Stefan-Boltzmann constant (W/m^2/K^4)
 SB_const = const.sigma_sb.value
+
+
+TI_rock_Bennu = [
+    2492, 2498, 373, 2491, 443, 324, 2496, 276, 2499, 363,
+    2485, 419, 1567, 2496, 2498, 2493, 387, 2494, 423, 2493,
+    701, 338, 562, 418, 438, 2495, 435, 423, 2496, 835,
+    452, 214, 227, 433, 869, 425, 647, 385, 340, 2496,
+    584, 305, 377, 449, 718, 372, 356, 451, 2490, 366,
+    321, 916, 400, 362, 1508, 789, 2492, 488, 391, 2497,
+    485, 2498, 756, 2491, 423, 337, 1486, 446, 2493, 351,
+    440, 1454, 2492, 447, 1773, 411, 349, 2492, 423, 474,
+    402, 385, 393, 1670, 441, 431, 2400, 403, 461, 2277,
+    369, 483, 403, 484, 2492, 334, 344, 433, 1197, 238,
+    263, 398, 387, 264, 2492, 443, 1133, 342, 376, 363,
+    338, 445, 327, 1099, 541, 374, 331, 420, 352, 350,
+    2497, 497
+]
+TI_cutoff_Bennu = [
+    162, 158, 123, 161, 133, 114, 156, 106, 169, 123,
+    155, 129, 167, 156, 158, 153, 127, 154, 133, 153,
+    141, 118, 142, 128, 128, 165, 135, 133, 156, 155,
+    132, 94, 97, 133, 159, 125, 147, 125, 110, 156,
+    144, 115, 127, 129, 138, 122, 116, 131, 160, 126,
+    111, 146, 130, 122, 148, 149, 162, 128, 131, 157,
+    135, 168, 146, 161, 123, 117, 146, 136, 163, 121,
+    130, 154, 162, 137, 153, 131, 119, 162, 133, 134,
+    122, 125, 123, 150, 121, 121, 150, 123, 131, 157,
+    119, 123, 123, 134, 162, 114, 114, 123, 147, 98,
+    103, 128, 127, 104, 172, 133, 153, 122, 126, 123,
+    118, 135, 117, 149, 121, 124, 121, 130, 122, 120,
+    157, 117
+]
+
+# OTES_IDS_final_w_temps.txt
+# I don't know which is which.
+T_min = 246.9808
+T_max = 268.6900
+
 
 
 def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_hr=4.296057, phi=0.50):
@@ -71,7 +109,7 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     henke_k = 4.3 * np.exp(-Phi / 0.08)
     avg_k = (flynn_k + henke_k) / 2.0
 
-    print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
+    #print(f"  flynn_k, henke_k, avg_k = {flynn_k[0]}, {henke_k[0]}, {avg_k[0]}")
 
     if model == "henke":
         avg_k = henke_k
@@ -90,6 +128,9 @@ def calc_prop(desired_TI, specific_heat=750.0, model="avg", rho_s=2920.0, rotP_h
     # Find porosity corresponding to the desired TI
     if desired_TI < TI.min() or desired_TI > TI.max():
         raise ValueError("Desired TI is out of the calculated range.")
+
+    if desired_TI > TI.max():
+        print(f"Warning: desired_TI {desired_TI} exceeds model max {TI.max()} (phi={phi})")
 
     out_Phi = np.interp(desired_TI, TI[::-1], Phi[::-1])
     out_k = np.interp(out_Phi, Phi, avg_k)
@@ -325,6 +366,8 @@ def keff(sphere_diam, depth, distance, phi, T, P, emiss, rho, gas_type,
     rho_b = props["rho_bulk"]
 
     k_s = k_s_func(T)
+    if k_const is not None:
+        k_s = k_const
     
     # Consider macroporosity
     rho_e = rho_b * (1.0 - phi)
@@ -472,7 +515,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
         # So constant value cannot reproduce the 
         # same result as Cambioni+2021
         # T ~ 300 K 
-        c_p = 750.0
+        c_p = c_p_cm_chondrite(T_typical)
         sample = "tagish"
 
 
@@ -508,7 +551,9 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
     # Particle diameter array from 100 microns to 15 cm
     # in m
     #D_arr = np.linspace(0.100e-3, 0.150e-2, 150)
-    D_arr = np.linspace(100e-6, 150e-3, 10000)
+    #D_arr = np.linspace(100e-6, 150e-3, 10000)
+    # This should be large enough to find intersection.
+    D_arr = np.logspace(np.log10(100e-6), np.log10(150e-2), 100000)
 
     # Calculate k_m (conductivity) and rho (material density of rock fragments) based on TIrock
     result = calc_prop(
@@ -522,6 +567,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
     out_keff = keff(
         D_arr, 0.01, 10.0, phi, T_typical, 1.0e-10, emiss, rho_e, 
         "N2", sample=sample, planet=obj, k_const=k_m, new_fk=1, zetaxi=1, surfenergy=0.032) 
+
     
     k_s_sakatani   = out_keff["k_s_sakatani"]
     k_rad_sakatani = out_keff["k_rad_sakatani"]
@@ -532,70 +578,123 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
         k_out = k_s_sakatani + k_rad_sakatani * fk_predicted
     else:
         k_out = k_s_sakatani + k_rad_sakatani
+ 
 
     # Calculate skin depth using regolith conductivity vs diameter
     skin = np.sqrt(k_out * rotP_s / (rho_e * c_p * np.pi))
-
     # Find the intersection point of skin depth and particle size curves
     mindifpos = np.argmin(np.abs(D_arr - skin))  
     # Find the closest value of D to skin depth
     Dth = D_arr[mindifpos]
-    k_out = k_out[mindifpos]
-    TIth = np.sqrt(k_out * c_p * rho_e)
+    k_out_th = k_out[mindifpos]
+    TIth = np.sqrt(k_out_th * c_p * rho_e)
 
+    k_rock = TI_rock**2/rho_s/c_p
+    skin_rock = np.sqrt(k_rock * rotP_s / (rho_s * c_p * np.pi))
+    skin_rock_arr = [skin_rock]*len(D_arr)
+
+    # Find the intersection point of skin depth and particle size curves
+    mindifpos_new = np.argmin(np.abs(D_arr - skin_rock_arr))  
+    Dth_new = D_arr[mindifpos_new]
+    k_out_new = k_out[mindifpos_new]
+    TIth_new = np.sqrt(k_out_new * c_p * rho_e)
+    
+    # For debug ===============================================================
+    #fig = plt.figure()
+    #ax = fig.add_axes([0.2, 0.2, 0.8, 0.8])
+    #ax.set_xscale("log")
+    #ax.set_yscale("log")
+    #ax.set_xlabel("D [m]")
+    #ax.set_ylabel("k_out")
+    #ax.scatter(D_arr, k_out)
+    #xmin, xmax = ax.get_xlim()
+    #ymin, ymax = ax.get_ylim()
+    #
+    ## Old solution
+    #ax.vlines(Dth, ymin, ymax, label="Old solution", ls="solid", color="gray")
+    #ax.hlines(k_out_th, xmin, xmax, ls="solid", color="gray")
+    ## New solution
+    #ax.vlines(Dth_new, ymin, ymax, label="New line", ls="dashed", color="black")
+    #ax.hlines(k_out_new, xmin, xmax, ls="dashed", color="black")
+
+    #ax.legend()
+    #plt.savefig("debug.pdf")
+    # For debug ===============================================================
+
+
+    if Dth >= D_arr.max() * 0.95 or Dth <= D_arr.min() * 1.05:
+        print(f"    Warning: Intersection reached array boundary! Dth={Dth:.4f}, phi={phi}")
     return Dth, TIth
+    #if Dth_new >= D_arr.max() * 0.95 or Dth_new <= D_arr.min() * 1.05:
+    #    print(f"    Warning: Intersection reached array boundary! Dth={Dth_new:.4f}, phi={phi}")
+    #return Dth_new, TIth_new
 
 
 
 if __name__ == "__main__":
     parser = ap(description="Test to check the functions.")
     parser.add_argument(
-        "action", type=str, default="TIth",
-        help="Plot TI rock vs. TI th")
-    parser.add_argument(
         "--obj", type=str, default="Bennu",
         help="Target object")
     parser.add_argument(
-        "--T_typical", type=float, default=300.,
+        "--T_typical", type=float, default=None,
         help="Typical temperature")
     args = parser.parse_args()
 
     
     # Plot TIrock vs. TIth
-    if args.action == "TIth":
-        obj = args.obj
-        T_typical = args.T_typical
-        TIrock_list = np.arange(25, 2500, 25)
+    obj = args.obj
+    TIrock_list = np.arange(25, 2500, 25)
 
-        print(f"  Plot TIrock vs. TIth")
-        print(f"  Object: {obj}, T={T_typical} [K]")
-        print(f"  Temperature: {T_typical}")
+    print(f"  Plot TIrock vs. TIth")
+    print(f"  Object: {obj}")
 
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_axes([0.15, 0.15, 0.7, 0.7])
-        ax.set_xlabel("TI of rock [tiu]")
-        ax.set_ylabel("TI cutoff [tiu]")
-        ax.set_xscale("log")
-        ax.set_title(f"{obj}, T={T_typical} [K]")
-        ax.set_ylim([0, 200])
+    fig = plt.figure(figsize=(12, 10))
+    ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
+    ax.set_xlabel(r"$TI_0$ (First guess of $\Gamma_{rock}$) [tiu]")
+    ax.set_ylabel("TI cutoff [tiu]")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_title(f"{obj}")
+    ax.grid(which="both", color="gray", alpha=0.2, ls="dashed")
+    
+    phi_list = [0.15, 0.40, 0.60]
+    phi_list = [0.15, 0.40, 0.60, 0.8]
+    phi_list = [0.40]
+    ls_list = ["solid", "dashed", "dotted", "solid", "dashed", "dotted"]
+    col_list = ["black", "red", "blue", "orange", "green", "brown"]
+    
+    if args.T_typical is not None:
+        T_list = [args.T_typical]
+    else:
+        T_list = [T_min, T_max]
 
-        phi_list = [0.15, 0.40, 0.60]
-        ls_list = ["solid", "dashed", "dotted"]
-        col_list = ["black", "red", "blue"]
+    for idx_T, T in enumerate(T_list):
+        print(f"  T={T:.2f} K")
+        if idx_T == 0 :
+            ls = "solid"
+        else:
+            ls = "dashed"
+
         for idx, phi in enumerate(phi_list):
             TIth_list = []
             for TI_rock in TIrock_list:
-                _, TIth = calc_TIth(TI_rock, T_typical, obj, phi)
+                _, TIth = calc_TIth(TI_rock, T, obj, phi)
                 TIth_list.append(TIth)
 
             ax.plot(
-                TIrock_list, TIth_list, ls=ls_list[idx], color=col_list[idx], label=f"$\phi={phi}$")
+                    TIrock_list, TIth_list, ls=ls, color=col_list[idx], label=f"$\phi={phi}$, w/T={T:.2f} K")
 
-        ax.legend(loc="lower right")
-        plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
-    
-    # For future update
-    elif args.action == "aaa":
-        pass
-    else:
-        print("  Not implemented : {args.action}")
+        
+    # 41586_2021_3816_MOESM2_ESM
+    # Gamma_c, Gamma_R
+    if obj == "Bennu":
+        ax.scatter(TI_rock_Bennu, TI_cutoff_Bennu, color="black", marker="x", label=f"Bennu $\phi=0.40$\n(Cambioni+2021)\nN={len(TI_rock_Bennu)}")
+
+    x = np.arange(10, 2000, 1)
+    ax.plot(
+        x, x, ls="dotted", color="gray", label=r"$\Gamma_{cutoff} = \Gamma_0$")
+
+    #ax.legend(loc="lower right")
+    ax.legend()
+    plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")

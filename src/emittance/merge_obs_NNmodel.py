@@ -8,6 +8,7 @@ import os
 from argparse import ArgumentParser as ap
 import pandas as pd
 import numpy as np
+import time
 
 
 def read_obs(f):
@@ -124,9 +125,17 @@ def concat_obs_NN(df_obs, df_NN):
     """
     # use useful columns
     df_obs_reduced = df_obs[["jd", "w", "f_obs", "ferr_obs"]]
+
     # concat with keys of "jd" and "w"
+    # This is important to merge
+    df_obs_reduced["jd"] = df_obs_reduced["jd"].round(5)
+    df_NN["jd"] = df_NN["jd"].round(5)
     df_result = df_NN.merge(df_obs_reduced, on=["jd", "w"], how="left")
+
+    assert not df_result.isna().any().any(), "df_result contains NaN values!"
+
     return df_result
+
 
 
 if __name__ == "__main__":
@@ -139,16 +148,23 @@ if __name__ == "__main__":
         "f_obs", type=str,
         help="Example of TPM result (to extract observations)")
     parser.add_argument(
+        "--preprocessed", action="store_true", default=False,
+        help="Use preprocessed data")
+    parser.add_argument(
         "--notuse", type=float, nargs="*", default=None,
         help="Epoch not used")
     parser.add_argument(
         "--out", type=str, default="NN_TPMres.txt.txt",
         help="output file name")
+    parser.add_argument(
+        "--outbinary", action="store_true", default=False,
+        help="Save as binary")
     args = parser.parse_args()
 
-    
+     
+    start_time = time.time()
+
     # Read NN predictions
-    print("NN prediction")
     ## directory where the files are located
     ## Check this directory carefully!
     f_list = os.listdir(args.NNdir)
@@ -157,18 +173,31 @@ if __name__ == "__main__":
     
     ## Concat files
     df_NN = prepro_NN(f_list)
+    print("Extracted NN data")
     
     ## Check unique epochs and wavelengths
     epoch_NN_unique, w_NN_unique = check_epoch_wavelength(df_NN)
     print(f"  N_epoch = {len(epoch_NN_unique)} {epoch_NN_unique}")
     print(f"  N_wave  = {len(w_NN_unique)}")
+    print(f"  Elapsed time: {time.time() - start_time:.2f} s\n")
     print("")
     
 
     # Read observations
     print("Observations")
-    ## read a result of TPM
-    df_obs = read_obs(args.f_obs)
+    obs_start = time.time()
+    
+    # Already preprocessed (e.g., for simulation data)
+    if args.preprocessed:
+        df_obs = pd.read_csv(args.f_obs, sep=" ")
+    else:
+        # read a result of TPM
+        df_obs = read_obs(args.f_obs, dtype=np.float32)
+        # Save for test
+        #df_obs.to_csv("test.txt", sep=" ", index=False)
+
+    assert not df_obs.isna().any().any(), "df_obs contains NaN values!"
+
     ## Remove useless epochs here
     if args.notuse:
         for epoch_notuse in args.notuse:
@@ -182,6 +211,7 @@ if __name__ == "__main__":
     epoch_obs_unique, w_obs_unique = check_epoch_wavelength(df_obs)
     print(f"N_epoch = {len(epoch_obs_unique)} {epoch_obs_unique}")
     print(f"N_wave  = {len(w_obs_unique)}")
+    print(f"Elapsed time for reading obs: {time.time() - obs_start:.2f} s\n")
     print("")
     
     # Check if the columns are identical
@@ -193,6 +223,17 @@ if __name__ == "__main__":
     assert diff2 == [], "Check the code and inputs."
     
     # Concatenate and save
+    concat_start = time.time()
     df_concat = concat_obs_NN(df_obs, df_NN)
-    # This dataframe is equivallent to the return of extract_flux in trem/common.py
-    df_concat.to_csv(args.out, sep=" ", index=False)
+    print(f"Elapsed time for concat_obs_NN: {time.time() - concat_start:.2f} s")
+    print()
+
+    # Save as binary. Recommended when the data size is large
+    # The size of .parquet is roughly 1/10 of the size of .csv (TBC)
+    if args.outbinary:
+        df_concat.to_parquet(args.out, engine="pyarrow", index=False)
+    else:
+        # This dataframe is equivallent to the return of extract_flux in trem/common.py
+        df_concat.to_csv(args.out, sep=" ", index=False)
+    print(f"Total elapsed time: {time.time() - start_time:.2f} s")
+    print()
