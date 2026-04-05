@@ -347,3 +347,29 @@ def c_p_ordinary_chondrite(type_meteorite, T_typical):
     # Heat capacity
     c_p = A + B*T_typical + C*T_typical**2 + D*T_typical**3
     return c_p
+
+
+def c_p_cm_chondrite(T_typical):
+    """
+    Heat capacity of ordinary chondrites from Mache et al. (2019), MPS, 54, 2729.
+    Valid from 70 to 300 K.
+
+    Parameters
+    ----------
+    type_meteorite : str
+        H, L, LL
+    T_typical : float
+        temperature in K
+
+    Return
+    ------
+    c_p : float
+        heat capacity in J/kg/K
+    """
+
+    # This is "cold" in the original code
+    A, B, C, D, E = (2.168e-1, 42.581e-2, 4.425e-2, -2.060e-4, 2.853e-7)
+
+    # Heat capacity
+    c_p = A + B*T_typical + C*T_typical**2 + D*T_typical**3 + E*T_typical**4
+    return c_p
