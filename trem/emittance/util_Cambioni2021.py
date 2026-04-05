@@ -510,7 +510,7 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
         # So constant value cannot reproduce the 
         # same result as Cambioni+2021
         # T ~ 300 K 
-        c_p = 750.0
+        c_p = c_p_cm_chondrite(T_typical)
         sample = "tagish"
 
 
