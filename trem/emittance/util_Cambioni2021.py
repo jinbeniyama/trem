@@ -24,7 +24,7 @@ from astropy import constants as const
 import matplotlib.pyplot as plt
 from trem.emittance.material import (
     get_material_properties, calc_k_rad_GB, calc_k_rad_sakatani, 
-    c_p_ordinary_chondrite)
+    c_p_ordinary_chondrite, c_p_cm_chondrite)
 
 # Constants
 # Stefan-Boltzmann constant (W/m^2/K^4)
@@ -61,6 +61,11 @@ TI_cutoff_Bennu = [
     118, 135, 117, 149, 121, 124, 121, 130, 122, 120,
     157, 117
 ]
+
+# OTES_IDS_final_w_temps.txt
+# I don't know which is which.
+T_min = 246.9808
+T_max = 268.6900
 
 
 
@@ -629,65 +634,67 @@ def calc_TIth(TI_rock, T_typical, obj, phi):
 if __name__ == "__main__":
     parser = ap(description="Test to check the functions.")
     parser.add_argument(
-        "action", type=str, default="TIth",
-        help="Plot TI rock vs. TI th")
-    parser.add_argument(
         "--obj", type=str, default="Bennu",
         help="Target object")
     parser.add_argument(
-        "--T_typical", type=float, default=260.,
+        "--T_typical", type=float, default=None,
         help="Typical temperature")
     args = parser.parse_args()
 
     
     # Plot TIrock vs. TIth
-    if args.action == "TIth":
-        obj = args.obj
-        T_typical = args.T_typical
-        TIrock_list = np.arange(25, 2500, 25)
+    obj = args.obj
+    TIrock_list = np.arange(25, 2500, 25)
 
-        print(f"  Plot TIrock vs. TIth")
-        print(f"  Object: {obj}, T={T_typical} [K]")
-        print(f"  Temperature: {T_typical}")
+    print(f"  Plot TIrock vs. TIth")
+    print(f"  Object: {obj}")
 
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_axes([0.15, 0.15, 0.7, 0.7])
-        ax.set_xlabel(r"$TI_0$ (First guess of $\Gamma_{rock}$) [tiu]")
-        ax.set_ylabel("TI cutoff [tiu]")
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.set_title(f"{obj}, T={T_typical} [K]")
-        #ax.set_ylim([50, 400])
-        
-        phi_list = [0.15, 0.40, 0.60]
-        phi_list = [0.15, 0.40, 0.60, 0.8]
-        phi_list = [0.40]
-        ls_list = ["solid", "dashed", "dotted", "solid", "dashed", "dotted"]
-        col_list = ["black", "red", "blue", "orange", "green", "brown"]
+    fig = plt.figure(figsize=(12, 10))
+    ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
+    ax.set_xlabel(r"$TI_0$ (First guess of $\Gamma_{rock}$) [tiu]")
+    ax.set_ylabel("TI cutoff [tiu]")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_title(f"{obj}")
+    ax.grid(which="both", color="gray", alpha=0.2, ls="dashed")
+    
+    phi_list = [0.15, 0.40, 0.60]
+    phi_list = [0.15, 0.40, 0.60, 0.8]
+    phi_list = [0.40]
+    ls_list = ["solid", "dashed", "dotted", "solid", "dashed", "dotted"]
+    col_list = ["black", "red", "blue", "orange", "green", "brown"]
+    
+    if args.T_typical is not None:
+        T_list = [args.T_typical]
+    else:
+        T_list = [T_min, T_max]
+
+    for idx_T, T in enumerate(T_list):
+        print(f"  T={T:.2f} K")
+        if idx_T == 0 :
+            ls = "solid"
+        else:
+            ls = "dashed"
+
         for idx, phi in enumerate(phi_list):
             TIth_list = []
             for TI_rock in TIrock_list:
-                _, TIth = calc_TIth(TI_rock, T_typical, obj, phi)
+                _, TIth = calc_TIth(TI_rock, T, obj, phi)
                 TIth_list.append(TIth)
 
             ax.plot(
-                TIrock_list, TIth_list, ls=ls_list[idx], color=col_list[idx], label=f"$\phi={phi}$")
+                    TIrock_list, TIth_list, ls=ls, color=col_list[idx], label=f"$\phi={phi}$, w/T={T:.2f} K")
+
         
-        # 41586_2021_3816_MOESM2_ESM
-        # Gamma_c, Gamma_R
-        if obj == "Bennu":
-            ax.scatter(TI_rock_Bennu, TI_cutoff_Bennu, color="black", marker="x", label=f"Bennu $\phi=0.40$\n(Cambioni+2021)\nN={len(TI_rock_Bennu)}")
+    # 41586_2021_3816_MOESM2_ESM
+    # Gamma_c, Gamma_R
+    if obj == "Bennu":
+        ax.scatter(TI_rock_Bennu, TI_cutoff_Bennu, color="black", marker="x", label=f"Bennu $\phi=0.40$\n(Cambioni+2021)\nN={len(TI_rock_Bennu)}")
 
-        x = np.arange(10, 2000, 1)
-        ax.plot(
-            x, x, ls="dotted", color="gray", label=r"$\Gamma_{cutoff} = \Gamma_0$")
+    x = np.arange(10, 2000, 1)
+    ax.plot(
+        x, x, ls="dotted", color="gray", label=r"$\Gamma_{cutoff} = \Gamma_0$")
 
-        #ax.legend(loc="lower right")
-        ax.legend()
-        plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
-    
-    # For future update
-    elif args.action == "aaa":
-        pass
-    else:
-        print("  Not implemented : {args.action}")
+    #ax.legend(loc="lower right")
+    ax.legend()
+    plt.savefig(f"TIrock_vs_TIth_{obj}.jpg")
