@@ -169,7 +169,7 @@ if __name__ == "__main__":
             print(f"  Best TI_rock = {TI_rock_best:.2f}, dTI = {dTI:.5f}")
 
             if dTI < 1e-3: break
-            TI_rock0 = TI_rock_best # 更新
+            TI_rock0 = TI_rock_best 
     elapsedtime(t_iter, "Iterative TI_thresh")
 
     # --- Final calculation ---
@@ -186,6 +186,8 @@ if __name__ == "__main__":
     valid_res = [r for r in results if r[1] is not None]
     if valid_res:
         best_final = pd.DataFrame([r[0] for r in valid_res]).sort_values("chi2").iloc[0]
+        print(f"\n[SUMMARY] Thermal inertia cutoff:")
+        print(f"  TIthresh  = {TI_thresh:.2f}")
         print(f"\n[SUMMARY] Best-fit parameters:")
         print(f"  chi2_min  = {best_final['chi2']:.2f}")
         print(f"  alpha     = {best_final['alpha']:.2f}")
